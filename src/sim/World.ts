@@ -2,13 +2,14 @@ import { applyAction } from './actions';
 import { beeVisible, createBees, emptyCommand, resumeFromState, stepBee, type BeeCtx } from './bee';
 import { deriveClock, makeClock, stepClock } from './clock';
 import { deriveBrood, deriveRoles, makeColony, stepColony, totalBrood } from './colony';
-import { MAX_AGENTS, POLLINATION_INCOME_PER_KG, SIM_DT, TIME_SCALE } from './constants';
+import { MAX_AGENTS, POLLINATION_INCOME_PER_KG, QUEEN_LAY_RATE, SIM_DT, TIME_SCALE } from './constants';
 import { generateMeadow, stepPatches } from './flora';
 import { Rng } from './rng';
 import { heightAt } from './terrain';
 import { stepThreats } from './threats';
+import { checkUnlocks, DEFAULT_UNLOCKED, SCENARIOS, STRAINS } from './unlocks';
 import { canForage, makeWeather, stepWeather } from './weather';
-import type { ActionResult, Bee, BeeCommand, BeekeeperAction, SimEvent, WorldState } from './types';
+import type { ActionResult, Bee, BeeCommand, BeekeeperAction, ScenarioId, SimEvent, StrainId, WorldState } from './types';
 
 const MAX_EVENTS = 400;
 const MAX_HISTORY = 240;
@@ -16,6 +17,10 @@ const MAX_HISTORY = 240;
 export interface CreateOptions {
   seed: number;
   agentCount?: number;
+  scenario?: ScenarioId;
+  strain?: StrainId;
+  /** Unlocks earned in earlier games (the profile). */
+  unlocked?: readonly string[];
 }
 
 export class SimWorld {
@@ -31,12 +36,15 @@ export class SimWorld {
   static create(opts: CreateOptions): SimWorld {
     const rng = new Rng(opts.seed);
     const hivePos = { x: 0, y: heightAt(0, 0) + 0.5, z: 0 };
-    const clock = makeClock();
+    const scenario = SCENARIOS[opts.scenario ?? 'meadow'];
+    const strainId: StrainId = opts.strain ?? 'italian';
+    const clock = makeClock(scenario.startDay * 1440 + scenario.startHour * 60);
     const state: WorldState = {
       seed: opts.seed,
       tick: 0,
       nextId: 1,
       threatHour: -1,
+      mods: { ...scenario.mods, tempBySeason: { ...scenario.mods.tempBySeason } },
       clock,
       weather: makeWeather(),
       colony: makeColony(hivePos, rng),
@@ -44,17 +52,26 @@ export class SimWorld {
       patches: [],
       threats: [],
       keeper: { money: 120, syrup: 6, miteTreatments: 2 },
-      unlocks: { unlocked: [], strain: 'italian', scenario: 'meadow' },
+      unlocks: { unlocked: [...new Set([...DEFAULT_UNLOCKED, ...(opts.unlocked ?? [])])], strain: strainId, scenario: scenario.id },
       history: [],
       possessedBeeId: null,
-      stats: { nectarCollected: 0, dancesPerformed: 0, waspsRepelled: 0, patchesPlanted: 0, daysSurvived: 0, recruits: 0 },
+      stats: { nectarCollected: 0, dancesPerformed: 0, waspsRepelled: 0, patchesPlanted: 0, daysSurvived: 0, recruits: 0, honeyHarvested: 0 },
       flags: {},
       events: [],
     };
+    state.colony.queen.layRate = QUEEN_LAY_RATE * STRAINS[strainId].layRate;
+    state.colony.stores.honey = scenario.honey;
     const world = new SimWorld(state, rng);
     state.patches = generateMeadow(rng, clock.dayOfYear, () => state.nextId++);
     state.bees = createBees(state, rng, Math.min(MAX_AGENTS, opts.agentCount ?? MAX_AGENTS));
     return world;
+  }
+
+  /** Swap in a different game while keeping this object (and everything holding it) valid. */
+  replaceWith(other: SimWorld): void {
+    this.state = other.state;
+    this.rng = other.rng;
+    this.beeCommand = emptyCommand();
   }
 
   /** Rebuild a world from saved state plus rng state. */
@@ -174,6 +191,7 @@ export class SimWorld {
 
     stepColony(s, this.rng, gdt, this.push);
     this.settleIncome();
+    if (s.tick % 150 === 0) checkUnlocks(s, this.push);
     this.sampleHistory();
   }
 
@@ -198,6 +216,7 @@ export class SimWorld {
       stepPatches(s, gdt);
       stepThreats(s, this.rng, gdt, this.push);
       stepColony(s, this.rng, gdt, this.push);
+      checkUnlocks(s, this.push);
       this.sampleHistory();
     }
   }

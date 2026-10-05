@@ -35,8 +35,8 @@ export function coldSnapDelta(threats: readonly Threat[]): number {
 export function planDay(w: WorldState, rng: Rng): void {
   const tbl = SEASON_TABLE[w.clock.season];
   const wx = w.weather;
-  wx.baseTempC = tbl.temp + rng.gauss(0, 2.5);
-  const rainy = rng.next() < tbl.rainChance;
+  wx.baseTempC = tbl.temp + rng.gauss(0, 2.5) + (w.mods.tempBySeason[w.clock.season] ?? 0);
+  const rainy = rng.next() < tbl.rainChance * w.mods.rainScale;
   if (rainy) {
     const start = rng.range(6 * 60, 19 * 60);
     wx.plan.rainStart = start;

@@ -9,6 +9,7 @@ import {
 import { honeyCapacity } from './colony';
 import { createPatch } from './flora';
 import type { Rng } from './rng';
+import { hasUpgrade } from './unlocks';
 import type { ActionResult, BeekeeperAction, SimEvent, WorldState } from './types';
 
 const fail = (message: string): ActionResult => ({ ok: false, message });
@@ -55,7 +56,8 @@ export function applyAction(
       );
     }
     case 'addSuper': {
-      if (c.capacity.supers >= MAX_SUPERS) return fail(`The hive already has the maximum of ${MAX_SUPERS} supers.`);
+      const maxSupers = MAX_SUPERS + (hasUpgrade(w, 'extraSuper') ? 1 : 0);
+      if (c.capacity.supers >= maxSupers) return fail(`The hive already has the maximum of ${maxSupers} supers.`);
       if (k.money < COST.super) return fail(`A new super costs ${COST.super}; you have ${Math.floor(k.money)}.`);
       k.money -= COST.super;
       c.capacity.supers++;
@@ -128,6 +130,7 @@ export function applyAction(
       const kg = Math.min(a.kg, spare);
       if (kg < 0.5) return fail(`Not enough surplus honey. The bees need to keep ${HONEY_RESERVE_KG} kg.`);
       c.stores.honey -= kg;
+      w.stats.honeyHarvested += kg;
       const earned = kg * HONEY_PRICE_PER_KG;
       k.money += earned;
       return done(`Harvested ${kg.toFixed(1)} kg of honey and sold it for ${Math.round(earned)}.`, { kg });

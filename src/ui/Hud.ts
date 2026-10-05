@@ -29,6 +29,7 @@ const TEMPLATE = /* html */ `
     <button class="btn ghost" data-speed="16">16×</button>
   </span>
   <span class="sep"></span>
+  <button class="btn ghost" id="h-menu" title="Menu: continue, new colony, unlocks (Esc)">Menu</button>
   <button class="btn ghost on" id="h-mute" title="Sound on/off (M)">Sound</button>
   <button class="btn ghost" id="h-help" title="Restart the tutorial">?</button>
   <button class="btn" id="h-mode">Become a bee (Tab)</button>
@@ -96,6 +97,7 @@ export interface HudCallbacks {
   onTutorialRestart: () => void;
   onToggleMute: () => void;
   onUiClick: () => void;
+  onMenu: () => void;
 }
 
 export interface HudExtra {
@@ -129,6 +131,7 @@ export class Hud {
     });
     this.get('h-help').addEventListener('click', () => cb.onTutorialRestart());
     this.get('h-mute').addEventListener('click', () => cb.onToggleMute());
+    this.get('h-menu').addEventListener('click', () => cb.onMenu());
     root.addEventListener('click', (ev) => {
       if ((ev.target as HTMLElement).closest('button')) cb.onUiClick();
     });
@@ -254,7 +257,7 @@ export class Hud {
     if (mode === GameMode.Human) {
       this.updateSelection(w);
       this.setHtml('g-body', gardenHtml(w, this.planting));
-      if (this.slow === 0 || force) this.setHtml('a-body', analyticsHtml(w.history));
+      if (this.slow === 0 || force || !this.lastHtml.has('a-body')) this.setHtml('a-body', analyticsHtml(w.history));
     }
     if (bee) this.updateBee(w, bee, prompt);
 

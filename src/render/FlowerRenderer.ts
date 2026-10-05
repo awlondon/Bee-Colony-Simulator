@@ -122,7 +122,7 @@ export class FlowerRenderer {
   private col = new THREE.Color();
 
   sync(world: WorldState): void {
-    const sig = world.patches.map((p) => p.id).join(',');
+    const sig = world.patches.map((p) => `${p.id}:${p.speciesId}:${p.pos.x.toFixed(1)}:${p.pos.z.toFixed(1)}`).join(',');
     if (sig !== this.patchSig) {
       this.rebuild(world.patches);
       this.patchSig = sig;

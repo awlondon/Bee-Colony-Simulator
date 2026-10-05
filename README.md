@@ -63,6 +63,12 @@ e2e          Playwright smoke test
 
 Dependency direction is `sim <- render/ui/input <- game <- main`. The UI and renderer only read sim state; the only writes are bee commands and beekeeper actions.
 
+## Scenarios, bees, unlocks and saving
+
+Open the **Menu** (button or `Esc`) to start a new colony. Four scenarios: *Summer Meadow* (balanced), *Dry Summer* (little nectar, scorching), *Pesticide Farm* (frequent drift) and *Hard Winter* (thin stores, bitter cold, more wasps). Three bee strains with real trade-offs: *Italian* (prolific but hungry), *Carniolan* (frugal, winters well) and *Buckfast* (mite-resistant, strong guards).
+Playing earns unlocks that carry over to every later colony: new strains and scenarios, plus permanent upgrades (an *entrance reducer* that makes guards hit wasps harder, an *insulated hive* that halves the cost of cold, and a *fifth super*). The menu shows how to earn whatever is still locked.
+The game **autosaves** every game day, every two minutes, and when you leave the page, and resumes where you left off. A collapsed colony is not resumed. Everything is stored in the browser; if storage is blocked the game still plays, it just remembers nothing.
+
 ## Learning as you play
 
 A guided **tutorial** (bottom left, skippable, restartable with the `?` button) walks through orbiting, selecting the hive, inspecting, becoming a bee, collecting, depositing, dancing and coming back. About thirty **"Did you know?" facts** appear once each at the moment they matter: the first forage, a wasp raid, a pesticide drift, the first season change, the first time you visit a given flower, and so on. What you have already seen is remembered in the browser.

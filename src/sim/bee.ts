@@ -8,7 +8,11 @@ import {
   BEE_MIN_HEIGHT,
   BEE_QUAD_DRAG,
   BEE_SINK,
+  DANCE_CYCLE_SECONDS,
+  DANCE_LOOP_BULGE,
   DANCE_MINUTES,
+  DANCE_RUN_FRACTION,
+  DANCE_RUN_LENGTH,
   DANCE_THRESHOLD,
   LOAD_MAX,
   MAX_ALTITUDE,
@@ -34,7 +38,7 @@ export interface BeeCtx {
   push: (e: SimEvent) => void;
 }
 
-const HIVE_STATES: ReadonlySet<BeeState> = new Set(['idleInHive', 'nurse', 'rest', 'followDance']);
+const HIVE_STATES: ReadonlySet<BeeState> = new Set(['idleInHive', 'nurse', 'rest']);
 
 export function emptyCommand(): BeeCommand {
   return { thrust: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0, boost: false, collect: false, dance: false, attack: false };
@@ -45,6 +49,8 @@ export function beeVisible(b: Bee): boolean {
   if (b.possessed) return true;
   if (b.state === 'dead') return false;
   if (b.state === 'waggleDance') return false;
+  // Followers are only drawn when they are watching the player's dance.
+  if (b.state === 'followDance') return b.followOf !== null;
   return !HIVE_STATES.has(b.state);
 }
 
@@ -230,6 +236,7 @@ function recycle(b: Bee, w: WorldState): void {
   b.load.pollen = 0;
   b.memory = null;
   b.dance = null;
+  b.followOf = null;
   b.poisoned = false;
   b.targetPatchId = null;
   b.target = null;
@@ -243,6 +250,24 @@ function parkInHive(b: Bee, w: WorldState, dt: number): void {
   copy(b.pos, w.colony.entrancePos);
   b.vel.x = b.vel.y = b.vel.z = 0;
   b.energy = Math.min(1, b.energy + 0.05 * dt);
+}
+
+/** Where the player's dance is performed: just in front of the entrance. */
+export function danceFloor(w: WorldState): Vec3 {
+  const e = w.colony.entrancePos;
+  return { x: e.x, y: e.y + 0.3, z: e.z + 0.9 };
+}
+
+/** Followers crowd around the dancer, facing in. */
+function gatherAroundDancer(b: Bee, w: WorldState): void {
+  const c = danceFloor(w);
+  const a = b.id * 2.399963;
+  const r = 1.15 + (b.id % 3) * 0.28;
+  b.pos.x = c.x + Math.cos(a) * r;
+  b.pos.z = c.z + Math.sin(a) * r * 0.7;
+  b.pos.y = c.y + (b.id % 4) * 0.12;
+  b.yaw = Math.atan2(c.x - b.pos.x, c.z - b.pos.z);
+  b.pitch = 0;
 }
 
 function beginReturn(b: Bee, w: WorldState): void {
@@ -291,7 +316,9 @@ export function stepBee(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx
     }
     case 'followDance': {
       parkInHive(b, w, dt);
+      if (b.followOf !== null) gatherAroundDancer(b, w);
       if (b.stateTime > 3) {
+        b.followOf = null;
         const p = findPatch(w, b.memory?.patchId ?? null);
         if (ctx.forageOk && usable(p, 0) && b.energy > 0.4) launch(b, w, p);
         else assignRole(b);
@@ -445,13 +472,41 @@ function stepPossessed(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx,
   const entrance = w.colony.entrancePos;
 
   if (b.state === 'waggleDance') {
-    // Locked on the dance floor while the dance plays out.
+    // Locked on the dance floor, performing a figure-eight whose waggle run points at the patch.
     const d = b.dance;
-    b.vel.x = b.vel.y = b.vel.z = 0;
+    const patch = d ? findPatch(w, d.patchId) : undefined;
+    const centre = danceFloor(w);
     const t = b.stateTime;
-    b.pos.x = entrance.x + Math.sin(t * 2.2) * 0.35;
-    b.pos.z = entrance.z + 0.6 + Math.sin(t * 4.4) * 0.18;
-    b.pos.y = entrance.y + 0.25;
+    const bearing = patch ? Math.atan2(patch.pos.x - w.colony.hivePos.x, patch.pos.z - w.colony.hivePos.z) : 0;
+    const fx = Math.sin(bearing);
+    const fz = Math.cos(bearing);
+    const rx = fz;
+    const rz = -fx;
+    const cycle = t / DANCE_CYCLE_SECONDS;
+    const k = Math.floor(cycle);
+    const u = cycle - k;
+    const side = k % 2 === 0 ? 1 : -1;
+    const half = DANCE_RUN_LENGTH / 2;
+    let along: number;
+    let lateral: number;
+    if (u < DANCE_RUN_FRACTION) {
+      along = -half + DANCE_RUN_LENGTH * (u / DANCE_RUN_FRACTION);
+      lateral = Math.sin(t * 55) * 0.05; // the waggle itself
+    } else {
+      const phi = (Math.PI * (u - DANCE_RUN_FRACTION)) / (1 - DANCE_RUN_FRACTION);
+      along = half * Math.cos(phi);
+      lateral = side * DANCE_LOOP_BULGE * Math.sin(phi);
+    }
+    const px = centre.x + fx * along + rx * lateral;
+    const pz = centre.z + fz * along + rz * lateral;
+    const mx = px - b.pos.x;
+    const mz = pz - b.pos.z;
+    if (Math.hypot(mx, mz) > 1e-4) b.yaw = Math.atan2(mx, mz) + (u < DANCE_RUN_FRACTION ? Math.sin(t * 55) * 0.3 : 0);
+    b.pitch = 0;
+    b.pos.x = px;
+    b.pos.z = pz;
+    b.pos.y = centre.y;
+    b.vel.x = b.vel.y = b.vel.z = 0;
     b.energy = Math.min(1, b.energy + 0.03 * dt);
     if (d) {
       d.remaining -= ctx.gmin;
@@ -569,6 +624,7 @@ export function createBees(w: WorldState, rng: Rng, count: number): Bee[] {
       dance: null,
       possessed: false,
       poisoned: false,
+      followOf: null,
     };
     assignRole(b);
     bees.push(b);

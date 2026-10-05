@@ -28,6 +28,10 @@ export const LOAD_MAX = 1;
 export const DANCE_THRESHOLD = 0.45;
 export const DANCE_MINUTES = 6;
 export const DANCE_MAX_RECRUITS = 7;
+export const DANCE_CYCLE_SECONDS = 2.2; // one half of the figure-eight
+export const DANCE_RUN_FRACTION = 0.38; // share of a cycle spent on the waggle run
+export const DANCE_RUN_LENGTH = 1.1;
+export const DANCE_LOOP_BULGE = 0.5;
 export const HONEY_YIELD = 0.5; // honey kg per nectar kg when ripened
 
 // Colony

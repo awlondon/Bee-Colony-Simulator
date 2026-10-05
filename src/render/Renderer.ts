@@ -20,6 +20,7 @@ export class Renderer {
   readonly weatherFx = new WeatherFX();
   private fog = new THREE.Fog(0xbfd8f0, 80, 260);
   private ghost: THREE.Mesh;
+  private beacon: THREE.Mesh;
   private clockTime = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -35,9 +36,25 @@ export class Renderer {
     this.ghost.visible = false;
     this.ghost.renderOrder = 5;
     this.scene.add(this.ghost);
+    this.beacon = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.45, 0.45, 18, 12, 1, true).translate(0, 9, 0),
+      new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
+    );
+    this.beacon.visible = false;
+    this.scene.add(this.beacon);
     this.scene.add(this.terrain.group, this.flowers.group, this.bees.group, this.hive.group, this.weatherFx.lines);
     this.resize();
     window.addEventListener('resize', () => this.resize());
+  }
+
+  /** While the player dances, mark the patch the dance advertises so the code is easy to read. */
+  private updateBeacon(world: WorldState): void {
+    const bee = world.bees.find((b) => b.possessed && b.state === 'waggleDance' && b.dance);
+    const patch = bee?.dance ? world.patches.find((p) => p.id === bee.dance!.patchId) : undefined;
+    this.beacon.visible = !!patch;
+    if (!patch) return;
+    this.beacon.position.set(patch.pos.x, patch.pos.y, patch.pos.z);
+    (this.beacon.material as THREE.MeshBasicMaterial).opacity = 0.22 + 0.12 * Math.sin(this.clockTime * 4);
   }
 
   /** Show or hide the planting cursor on the ground. */
@@ -67,6 +84,7 @@ export class Renderer {
     this.flowers.sync(world);
     const visible = this.bees.sync(world, alpha, this.clockTime, cam);
     this.hive.sync(world, dt);
+    this.updateBeacon(world);
     this.weatherFx.update(world, cam, dt);
     this.gl.render(this.scene, this.rig.camera);
     return visible;

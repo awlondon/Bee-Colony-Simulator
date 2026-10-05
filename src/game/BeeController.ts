@@ -4,6 +4,7 @@ import { makePose, type CameraPose } from '../render/CameraRig';
 import { emptyCommand } from '../sim/bee';
 import { heightAt } from '../sim/terrain';
 import type { Input } from '../input/Input';
+import type { Bee } from '../sim/types';
 import type { SimWorld } from '../sim/World';
 import type { Controller, GameMode } from './ModeManager';
 
@@ -88,12 +89,16 @@ export class BeeController implements Controller {
     this.updatePrompt(b);
   }
 
-  private updatePrompt(b: { pos: { x: number; y: number; z: number }; load: { nectar: number }; memory: unknown; state: string }): void {
+  private updatePrompt(b: Bee): void {
     const s = this.world.state;
     const e = s.colony.entrancePos;
     const nearHive = Math.hypot(b.pos.x - e.x, b.pos.y - e.y, b.pos.z - e.z) < 2.5;
     let p = '';
-    if (b.state === 'waggleDance') p = 'Waggle dancing: recruits are reading your dance…';
+    if (b.state === 'waggleDance' && b.dance) {
+      const deg = Math.round((Math.abs(b.dance.angle) * 180) / Math.PI);
+      const turn = b.dance.angle >= 0 ? 'counter-clockwise' : 'clockwise';
+      p = `Waggle dance: patch is ${deg}° ${turn} of the sun, ${Math.round(b.dance.distance)} m away · ${b.dance.recruits} recruited`;
+    }
     else if (nearHive && b.load.nectar > 0.05) p = 'Land at the entrance to deposit your nectar';
     else if (nearHive && b.memory) p = 'Hold Q at the entrance to waggle-dance your flower patch';
     else if (b.state === 'collecting') p = 'Collecting… hold E until your load is full, then fly home';

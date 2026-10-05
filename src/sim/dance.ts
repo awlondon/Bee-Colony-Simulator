@@ -75,6 +75,7 @@ export function recruitFollowers(
     b.targetPatchId = patch.id;
     b.state = 'followDance';
     b.stateTime = 0;
+    b.followOf = dancer.possessed ? dancer.id : null;
     d.recruits++;
     w.stats.recruits++;
     recruited++;

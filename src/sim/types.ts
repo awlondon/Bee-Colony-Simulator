@@ -116,6 +116,7 @@ export interface Bee {
   dance: DanceInfo | null;
   possessed: boolean;
   poisoned: boolean; // carrying pesticide-contaminated nectar
+  followOf: number | null; // id of the player's bee whose dance this bee is following
 }
 
 export interface BeeCommand {

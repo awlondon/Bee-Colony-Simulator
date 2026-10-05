@@ -74,6 +74,7 @@ const TEMPLATE = /* html */ `
   <div class="compass" title="Direction to the hive"><div class="arrow" id="b-arrow"></div><div class="dot"></div></div>
   <div class="row"><span>Nearest bloom</span><b id="b-near">–</b></div>
   <div class="row"><span>Remembered patch</span><b id="b-mem">none</b></div>
+  <div class="row"><span>Dance recruits</span><b id="b-recruits">0</b></div>
 </div>
 <div class="crosshair only-bee"></div>
 <div class="prompt only-bee" id="b-prompt"></div>
@@ -334,6 +335,7 @@ export class Hud {
     this.set('b-near', best ? `${best.name} · ${fmt(best.d, 0)} m` : 'none in bloom');
     const mem = b.memory ? w.patches.find((p) => p.id === b.memory?.patchId) : undefined;
     this.set('b-mem', mem ? FLOWER_SPECIES[mem.speciesId].name : 'none');
+    this.set('b-recruits', b.dance ? `${b.dance.recruits} now · ${w.stats.recruits} total` : `${w.stats.recruits} total`);
     this.set('b-prompt', prompt);
   }
 }

@@ -76,3 +76,7 @@ body[data-mode='transition'] .only-human, body[data-mode='transition'] .only-bee
   background: #24170a; color: var(--wax); pointer-events: auto; padding: 24px; font-size: 16px;
 }
 .fatal.show { display: flex; }
+
+.alerts { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.alert { background: rgba(60, 20, 10, 0.82); border: 1px solid var(--bad); border-radius: 8px; padding: 5px 14px; font-weight: 700; color: #ffe0d8; white-space: nowrap; }
+.alert.warn { background: rgba(60, 40, 8, 0.82); border-color: var(--warn); color: #ffeccc; }

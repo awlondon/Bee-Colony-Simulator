@@ -5,6 +5,7 @@ import { MAX_AGENTS, SIM_DT, TIME_SCALE } from './constants';
 import { generateMeadow, stepPatches } from './flora';
 import { Rng } from './rng';
 import { heightAt } from './terrain';
+import { stepThreats } from './threats';
 import { canForage, makeWeather, stepWeather } from './weather';
 import type { Bee, BeeCommand, SimEvent, WorldState } from './types';
 
@@ -34,6 +35,7 @@ export class SimWorld {
       seed: opts.seed,
       tick: 0,
       nextId: 1,
+      threatHour: -1,
       clock,
       weather: makeWeather(),
       colony: makeColony(hivePos, rng),
@@ -154,6 +156,7 @@ export class SimWorld {
     }
     if (stepWeather(s, this.rng, gdt)) this.push({ kind: 'rainStarted', t: s.clock.totalMinutes });
     stepPatches(s, gdt);
+    stepThreats(s, this.rng, gdt, this.push);
 
     const ctx: BeeCtx = {
       scale: Math.max(1, s.colony.roles.foragers + s.colony.roles.nurses + s.colony.roles.guards) / s.bees.length,
@@ -187,6 +190,7 @@ export class SimWorld {
       if (stepClock(s, gdt)) this.push({ kind: 'seasonChanged', t: s.clock.totalMinutes, data: { season: s.clock.season } });
       stepWeather(s, this.rng, gdt);
       stepPatches(s, gdt);
+      stepThreats(s, this.rng, gdt, this.push);
       stepColony(s, this.rng, gdt, this.push);
       this.sampleHistory();
     }

@@ -115,6 +115,7 @@ export interface Bee {
   memory: BeeMemory | null;
   dance: DanceInfo | null;
   possessed: boolean;
+  poisoned: boolean; // carrying pesticide-contaminated nectar
 }
 
 export interface BeeCommand {
@@ -124,6 +125,7 @@ export interface BeeCommand {
   boost: boolean;
   collect: boolean;
   dance: boolean;
+  attack: boolean;
 }
 
 export type Mood = 'calm' | 'busy' | 'agitated' | 'defensive';
@@ -221,6 +223,7 @@ export interface WorldState {
   seed: number;
   tick: number;
   nextId: number;
+  threatHour: number; // last game hour threats were rolled for
   clock: Clock;
   weather: Weather;
   colony: Colony;
@@ -239,6 +242,6 @@ export interface WorldState {
     daysSurvived: number;
     recruits: number;
   };
-  flags: Record<string, boolean>;
+  flags: Record<string, boolean | number>;
   events: SimEvent[];
 }

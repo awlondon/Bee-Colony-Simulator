@@ -25,6 +25,8 @@ const TEMPLATE = /* html */ `
   <button class="btn" id="h-mode">Become a bee (Tab)</button>
 </div>
 
+<div class="alerts" id="h-alerts"></div>
+
 <div class="side only-human panel" id="p-colony">
   <h3>Colony</h3>
   <div class="row"><span>Workers</span><b id="c-workers">0</b></div>
@@ -159,6 +161,7 @@ export class Hud {
     this.set('c-mood', col.mood);
     mood.className = `mood ${col.mood}`;
 
+    this.updateAlerts(w, mode);
     if (mode === GameMode.Human) this.updateSelection(w);
     if (bee) this.updateBee(w, bee, prompt);
 
@@ -166,8 +169,33 @@ export class Hud {
       'h-hint',
       mode === GameMode.Human
         ? 'Drag: orbit · Wheel: zoom · Right-drag/WASD: pan · T: top-down · Click a bee then Tab: fly it · P: pause · 1-5: speed'
-        : 'WASD: fly · Space/C: up/down · Shift: boost · Mouse-drag or arrows: look · E: collect · Q: dance · F: mouse-look · Tab: hive',
+        : 'WASD: fly · Space/C: up/down · Shift: boost · Mouse-drag or arrows: look · E: collect · Q: dance · R: sting · F: mouse-look · Tab: hive',
     );
+  }
+
+  private updateAlerts(w: WorldState, mode: GameMode): void {
+    const alerts: { cls: string; text: string }[] = [];
+    let wasps = 0;
+    let patches = 0;
+    let snap = false;
+    for (const t of w.threats) {
+      if (t.kind === 'wasp' && t.state !== 'dead' && t.state !== 'flee') wasps++;
+      else if (t.kind === 'pesticide') patches += t.patchIds.length;
+      else if (t.kind === 'coldSnap') snap = true;
+    }
+    if (wasps > 0) {
+      const tip = mode === GameMode.Bee ? ' — fly close and hold R to sting it' : '';
+      alerts.push({ cls: 'bad', text: `⚠ Wasp raid at the entrance${tip}` });
+    }
+    if (patches > 0) alerts.push({ cls: 'warn', text: `☣ Pesticide drift: ${patches} flower patch${patches > 1 ? 'es' : ''} contaminated` });
+    if (snap) alerts.push({ cls: 'warn', text: `❄ Cold snap: ${fmt(w.weather.tempC, 0)}°C, bees are clustering` });
+    if (w.colony.starving) alerts.push({ cls: 'bad', text: '⚠ The colony is starving' });
+    else if (w.colony.stores.honey < 1.2 && !w.colony.collapsed) alerts.push({ cls: 'warn', text: 'Honey stores are very low' });
+    if (!w.colony.queen.alive) alerts.push({ cls: 'bad', text: '⚠ The queen has died' });
+    if (w.colony.collapsed) alerts.push({ cls: 'bad', text: '☠ The colony has collapsed' });
+    const html = alerts.map((a) => `<div class="alert ${a.cls}">${a.text}</div>`).join('');
+    const el = this.get('h-alerts');
+    if (el.innerHTML !== html) el.innerHTML = html;
   }
 
   private updateSelection(w: WorldState): void {
@@ -202,7 +230,11 @@ export class Hud {
         btn.style.display = '';
       }
     } else if (s?.kind === 'threat') {
-      html = '<div class="row"><b>Wasp raider</b></div>';
+      const t = w.threats.find((x) => x.id === s.id);
+      html =
+        t && t.kind === 'wasp'
+          ? `<div class="row"><b>Wasp raider</b></div><div class="row"><span>Vigour</span><b>${Math.max(0, Math.round(t.hp))}%</b></div><div class="row"><span>State</span><b>${t.state}</b></div>`
+          : '<div class="row"><b>Wasp raider</b></div>';
     }
     if (body.innerHTML !== html) body.innerHTML = html;
   }

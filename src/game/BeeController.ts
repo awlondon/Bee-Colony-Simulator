@@ -83,6 +83,7 @@ export class BeeController implements Controller {
     cmd.boost = input.down('ShiftLeft') || input.down('ShiftRight');
     cmd.collect = input.down('KeyE');
     cmd.dance = input.down('KeyQ');
+    cmd.attack = input.down('KeyR');
     this.world.setBeeCommand(cmd);
     this.updatePrompt(b);
   }

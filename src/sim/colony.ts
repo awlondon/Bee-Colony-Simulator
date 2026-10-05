@@ -78,7 +78,7 @@ function seasonLayFactor(season: Season, dayOfYear: number): number {
     case 'summer':
       return 1;
     case 'autumn':
-      return 0.55 - 0.07 * (dayOfYear % 6);
+      return 0.4 - 0.06 * (dayOfYear % 6);
     default:
       return 0.04;
   }
@@ -160,8 +160,13 @@ export function stepColony(w: WorldState, rng: Rng, gdt: number, push: (e: SimEv
   }
 
   // Adult consumption.
+  const seasonFactor = season === 'winter' ? 0.8 : 1;
   const need =
-    (c.adults.workers + c.adults.drones) * PER_BEE_HONEY_KG_DAY * coldConsumptionMultiplier(w.weather.tempC) * days;
+    (c.adults.workers + c.adults.drones) *
+    PER_BEE_HONEY_KG_DAY *
+    seasonFactor *
+    coldConsumptionMultiplier(w.weather.tempC) *
+    days;
   let remaining = need;
   const fromHoney = Math.min(c.stores.honey, remaining);
   c.stores.honey -= fromHoney;

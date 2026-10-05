@@ -13,12 +13,15 @@ import {
   LOAD_MAX,
   MAX_ALTITUDE,
   NECTAR_KG_PER_LOAD,
+  POISON_HEALTH_PER_BEE,
+  POISON_LETHALITY,
   POLLEN_CAPACITY,
   POLLEN_KG_PER_LOAD,
   WORLD_SIZE,
 } from './constants';
 import { honeyCapacity } from './colony';
 import { recruitFollowers, startDance } from './dance';
+import { activeWasps, playerAttack } from './threats';
 import { FLOWER_SPECIES, patchQuality } from './flora';
 import type { Rng } from './rng';
 import { heightAt } from './terrain';
@@ -34,7 +37,7 @@ export interface BeeCtx {
 const HIVE_STATES: ReadonlySet<BeeState> = new Set(['idleInHive', 'nurse', 'rest', 'followDance']);
 
 export function emptyCommand(): BeeCommand {
-  return { thrust: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0, boost: false, collect: false, dance: false };
+  return { thrust: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0, boost: false, collect: false, dance: false, attack: false };
 }
 
 /** True when the bee should be drawn (outside the hive or under player control). */
@@ -186,6 +189,7 @@ function collectFrom(b: Bee, p: FlowerPatch, w: WorldState, ctx: BeeCtx): boolea
   p.pollen -= takePollen;
   b.load.pollen = Math.min(LOAD_MAX, b.load.pollen + takePollen / pk);
   b.memory = { patchId: p.id, quality: patchQuality(p), lastVisitMinute: w.clock.totalMinutes };
+  if (p.pesticide > 0.3) b.poisoned = true;
   return b.load.nectar < LOAD_MAX - 1e-6 && p.nectar > 1e-9;
 }
 
@@ -200,6 +204,13 @@ function deposit(b: Bee, w: WorldState, ctx: BeeCtx): void {
   w.stats.nectarCollected += accepted;
   b.load.nectar = 0;
   b.load.pollen = 0;
+  if (b.poisoned) {
+    b.poisoned = false;
+    c.adults.workers = Math.max(0, c.adults.workers - ctx.scale * POISON_LETHALITY);
+    c.health = Math.max(0, c.health - POISON_HEALTH_PER_BEE * ctx.scale);
+    if (!b.possessed) b.energy = 0;
+    else b.energy = Math.max(0, b.energy - 0.35);
+  }
   if (w.flags.firstForage !== true && accepted > 0) {
     w.flags.firstForage = true;
     ctx.push({ kind: 'firstForage', t: w.clock.totalMinutes });
@@ -219,6 +230,7 @@ function recycle(b: Bee, w: WorldState): void {
   b.load.pollen = 0;
   b.memory = null;
   b.dance = null;
+  b.poisoned = false;
   b.targetPatchId = null;
   b.target = null;
   b.energy = 1;
@@ -300,6 +312,10 @@ export function stepBee(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx
     }
     case 'guard': {
       if (b.ageDays >= 40) return recycle(b, w);
+      if (activeWasps(w).some((t) => Math.hypot(t.pos.x - entrance.x, t.pos.z - entrance.z) < 14)) {
+        setState(b, 'fightWasp');
+        return;
+      }
       const ang = w.tick * 0.025 + b.id * 0.9;
       const tgt = { x: entrance.x + Math.cos(ang) * 1.3, y: entrance.y + 0.15 + Math.sin(ang * 2) * 0.2, z: entrance.z + 0.4 + Math.sin(ang) * 0.9 };
       steer(b, tgt, dt, 2.2, w.tick);
@@ -360,15 +376,36 @@ export function stepBee(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx
         const patch = findPatch(w, b.memory?.patchId ?? null);
         if (patch && b.memory && b.memory.quality >= DANCE_THRESHOLD && rng.next() < 0.6) {
           startDance(b, w, patch, DANCE_MINUTES);
-          ctx.push({ kind: 'danceStarted', t: w.clock.totalMinutes, data: { patchId: patch.id } });
+          const last = w.flags.lastDanceEvent;
+          if (typeof last !== 'number' || w.clock.totalMinutes - last > 20) {
+            w.flags.lastDanceEvent = w.clock.totalMinutes;
+            ctx.push({ kind: 'danceStarted', t: w.clock.totalMinutes, data: { patchId: patch.id } });
+          }
         } else if (b.energy < 0.35) setState(b, 'rest');
         else setState(b, 'idleInHive');
       }
       return;
     }
-    case 'fightWasp':
-      setState(b, 'guard');
+    case 'fightWasp': {
+      let target = null as null | { pos: Vec3 };
+      let best = 20;
+      for (const t of activeWasps(w)) {
+        const d = Math.hypot(t.pos.x - b.pos.x, t.pos.y - b.pos.y, t.pos.z - b.pos.z);
+        if (d < best) {
+          best = d;
+          target = t;
+        }
+      }
+      if (!target) {
+        setState(b, 'guard');
+        return;
+      }
+      const a = w.tick * 0.12 + b.id;
+      const around = { x: target.pos.x + Math.cos(a) * 0.45, y: target.pos.y + Math.sin(a * 1.3) * 0.3, z: target.pos.z + Math.sin(a) * 0.45 };
+      steer(b, around, dt, BEE_CRUISE_SPEED + 1.5, w.tick);
+      b.energy = Math.max(0.3, b.energy - 0.001 * dt);
       return;
+    }
   }
 }
 
@@ -431,6 +468,10 @@ function stepPossessed(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx,
   const speed = Math.hypot(b.vel.x, b.vel.y, b.vel.z);
   const nearHive = dist3(b.pos, entrance) < 2.5;
   if (nearHive) b.energy = Math.min(1, b.energy + 0.12 * dt);
+
+  if (cmd.attack && b.energy > 0.05) {
+    if (playerAttack(w, b.pos, dt, ctx.push)) b.energy = Math.max(0, b.energy - 0.02 * dt);
+  }
 
   let collecting = false;
   if (cmd.collect && speed < 1.8) {
@@ -527,6 +568,7 @@ export function createBees(w: WorldState, rng: Rng, count: number): Bee[] {
       memory: null,
       dance: null,
       possessed: false,
+      poisoned: false,
     };
     assignRole(b);
     bees.push(b);

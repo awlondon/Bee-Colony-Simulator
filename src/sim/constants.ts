@@ -31,10 +31,10 @@ export const DANCE_MAX_RECRUITS = 7;
 export const HONEY_YIELD = 0.5; // honey kg per nectar kg when ripened
 
 // Colony
-export const FRAME_KG = 1.5;
-export const SUPER_KG = 12;
+export const FRAME_KG = 2.4;
+export const SUPER_KG = 14;
 export const POLLEN_CAPACITY = 5;
-export const PER_BEE_HONEY_KG_DAY = 6e-5;
+export const PER_BEE_HONEY_KG_DAY = 5e-5;
 export const LARVA_POLLEN_KG_DAY = 4e-5;
 export const BROOD_DAYS = 21;
 export const EGG_DAYS = 3;
@@ -46,3 +46,8 @@ export const NEST_TARGET_C = 35;
 export const FORAGE_MIN_TEMP = 10;
 export const FORAGE_MAX_RAIN = 0.5;
 export const FORAGE_MAX_WIND = 0.7;
+
+// Pesticide: lethality per poisoned foraging trip, as a share of the bees an agent represents.
+// Real foragers make ~25 trips a day, so a small per-trip rate adds up to a large daily loss.
+export const POISON_LETHALITY = 0.03;
+export const POISON_HEALTH_PER_BEE = 1e-5;

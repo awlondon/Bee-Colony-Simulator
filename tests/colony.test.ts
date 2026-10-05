@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { honeyCapacity } from '../src/sim/colony';
 import { SimWorld } from '../src/sim/World';
 
 describe('colony', () => {
@@ -17,6 +18,7 @@ describe('colony', () => {
   it('brood becomes adults: a laying queen sustains the population better than none', () => {
     const run = (queen: boolean): number => {
       const w = SimWorld.create({ seed: 6 });
+      w.state.flags.noThreats = true;
       const c = w.state.colony;
       c.capacity.supers = 4;
       c.stores.honey = 50;
@@ -51,6 +53,6 @@ describe('colony', () => {
     const c = w.state.colony;
     c.stores.honey = 500;
     w.advanceCoarse(120);
-    expect(c.stores.honey + c.stores.nectar).toBeLessThanOrEqual(c.capacity.frames * 1.5 + 0.001);
+    expect(c.stores.honey + c.stores.nectar).toBeLessThanOrEqual(honeyCapacity(c) + 0.001);
   });
 });

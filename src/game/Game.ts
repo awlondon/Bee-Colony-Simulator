@@ -1,3 +1,5 @@
+import { AudioEngine } from '../audio/AudioEngine';
+import { audioParams } from '../audio/audioParams';
 import { Input } from '../input/Input';
 import { Renderer } from '../render/Renderer';
 import { MAX_AGENTS, SIM_DT } from '../sim/constants';
@@ -32,6 +34,7 @@ export class Game {
   readonly human: HumanController;
   readonly bee: BeeController;
   readonly modes: ModeManager;
+  readonly audio: AudioEngine;
   readonly facts: FactEngine;
   readonly tutorial: Tutorial;
   speed = 1;
@@ -55,6 +58,7 @@ export class Game {
       { [GameMode.Human]: this.human, [GameMode.Bee]: this.bee },
     );
     const storage = safeStorage();
+    this.audio = new AudioEngine(storage);
     this.tutorial = new Tutorial(storage);
     this.facts = new FactEngine((t) => this.hud.toast(t), storage);
     this.hud = new Hud(hudRoot, {
@@ -68,7 +72,12 @@ export class Game {
       onPlantMode: (sp) => this.human.setPlanting(sp),
       onTutorialSkip: () => this.tutorial.skip(),
       onTutorialRestart: () => this.tutorial.restart(),
+      onToggleMute: () => this.audio.toggleMute(),
+      onUiClick: () => this.audio.click(),
     });
+    this.audio.onMuteChanged = (m) => this.hud.setMuted(m);
+    this.hud.setMuted(this.audio.muted);
+    this.input.onFirstGesture = () => this.audio.start();
     this.modes.onModeChanged = (m) => this.facts.trigger(`mode:${m}`);
     this.human.onPlant = (sp, pos) => this.act({ type: 'plantPatch', speciesId: sp, pos });
     this.human.onSelect = (s) => this.hud.setSelection(s);
@@ -109,6 +118,7 @@ export class Game {
     this.last = now;
     const input = this.input;
     if (input.justPressed('KeyP')) this.setSpeed(this.speed === 0 ? 1 : 0);
+    if (input.justPressed('KeyM')) this.audio.toggleMute();
     const keys = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'];
     keys.forEach((k, i) => {
       if (input.justPressed(k)) this.setSpeed(SPEEDS[i + 1]);
@@ -134,6 +144,7 @@ export class Game {
       const t = toastFor(e, this.world.state);
       if (t) this.hud.toast(t);
       this.facts.onEvent(e);
+      this.audio.onEvent(e);
     }
     this.updateTeaching(dt, events);
     this.lidTimer = Math.max(0, this.lidTimer - dt);
@@ -147,6 +158,12 @@ export class Game {
     }
     const hover = planting ? this.human.plantHover : null;
     this.renderer.setGhost(hover, hover ? plantProblem(this.world.state, hover.x, hover.z) === null : false);
+
+    const cam = this.renderer.rig.camera.position;
+    const hp = this.world.state.colony.hivePos;
+    this.audio.update(
+      audioParams(this.world.state, this.modes.mode === GameMode.Bee ? 'bee' : 'human', this.world.possessedBee(), Math.hypot(cam.x - hp.x, cam.y - hp.y, cam.z - hp.z)),
+    );
 
     this.visibleBees = this.renderer.render(this.world.state, alpha, dt);
     this.hud.update(dt, this.world.state, this.modes.mode, this.world.possessedBee(), this.bee.prompt, {

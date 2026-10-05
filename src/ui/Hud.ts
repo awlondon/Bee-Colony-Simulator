@@ -29,6 +29,7 @@ const TEMPLATE = /* html */ `
     <button class="btn ghost" data-speed="16">16×</button>
   </span>
   <span class="sep"></span>
+  <button class="btn ghost on" id="h-mute" title="Sound on/off (M)">Sound</button>
   <button class="btn ghost" id="h-help" title="Restart the tutorial">?</button>
   <button class="btn" id="h-mode">Become a bee (Tab)</button>
 </div>
@@ -93,6 +94,8 @@ export interface HudCallbacks {
   onPlantMode: (s: SpeciesId | null) => void;
   onTutorialSkip: () => void;
   onTutorialRestart: () => void;
+  onToggleMute: () => void;
+  onUiClick: () => void;
 }
 
 export interface HudExtra {
@@ -125,6 +128,10 @@ export class Hud {
       if (t) cb.onSpeed(Number(t.dataset.speed));
     });
     this.get('h-help').addEventListener('click', () => cb.onTutorialRestart());
+    this.get('h-mute').addEventListener('click', () => cb.onToggleMute());
+    root.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('button')) cb.onUiClick();
+    });
     this.get('h-tutorial').addEventListener('click', (ev) => {
       if ((ev.target as HTMLElement).closest('[data-tut="skip"]')) cb.onTutorialSkip();
     });
@@ -175,6 +182,11 @@ export class Hud {
     const f = this.get('h-fatal');
     f.textContent = message;
     f.classList.add('show');
+  }
+
+  setMuted(muted: boolean): void {
+    this.get('h-mute').classList.toggle('on', !muted);
+    this.set('h-mute', muted ? 'Muted' : 'Sound');
   }
 
   setTutorial(v: TutorialView | null): void {

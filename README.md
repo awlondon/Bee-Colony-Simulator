@@ -23,6 +23,7 @@ npm run test:e2e   # headless Chromium smoke test (screenshots in e2e/screenshot
 | Mode | Input | Action |
 | --- | --- | --- |
 | Both | `Tab` | Switch Human / Bee mode |
+| Both | `M` | Mute / unmute |
 | Both | `P`, `1`-`5` | Pause, then 1x, 2x, 4x, 8x, 16x time (Bee Mode always runs at 1x) |
 | Human | Drag / wheel | Orbit / zoom |
 | Human | Right-drag, Shift-drag, WASD | Pan |
@@ -65,3 +66,7 @@ Dependency direction is `sim <- render/ui/input <- game <- main`. The UI and ren
 ## Learning as you play
 
 A guided **tutorial** (bottom left, skippable, restartable with the `?` button) walks through orbiting, selecting the hive, inspecting, becoming a bee, collecting, depositing, dancing and coming back. About thirty **"Did you know?" facts** appear once each at the moment they matter: the first forage, a wasp raid, a pesticide drift, the first season change, the first time you visit a given flower, and so on. What you have already seen is remembered in the browser.
+
+## Sound
+
+All audio is synthesised with the Web Audio API, with no sound files. Your wingbeat rises in pitch as you fly faster and drops when you tire. In Human Mode the colony's murmur swells with population and fades as you pull away from the hive. Wind, rain and night crickets follow the simulated weather. Sound starts on your first click or key press (a browser rule) and the mute setting is remembered.

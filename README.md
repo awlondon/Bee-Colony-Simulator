@@ -1,1 +1,57 @@
-# Bee-Colony-Simulator
+# Bee Colony Simulator
+
+A 3D bee colony simulation you can play from two perspectives and switch between in real time.
+
+- **Human Mode**: the beekeeper. Orbit a living meadow, watch colony statistics, inspect flower patches and bees.
+- **Bee Mode**: press **Tab** and you possess one forager. Fly, hover over blooms, collect nectar and pollen, carry it home. Bee vision (red-blind, UV-sensitive) fades in as the camera swoops down.
+- **Machine control switch**: **Tab** (or the top-bar button) flips between the two. The simulation never stops; your bee hands back to its own AI when you leave.
+
+Everything is generated in code (low-poly geometry, procedural sky). No assets are downloaded, and it runs offline after `npm install`.
+
+## Run
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm test           # simulation unit tests (vitest) + determinism guard
+npm run build      # type-check and production build
+npm run test:e2e   # headless Chromium smoke test (screenshots in e2e/screenshots)
+```
+
+## Controls
+
+| Mode | Input | Action |
+| --- | --- | --- |
+| Both | `Tab` | Switch Human / Bee mode |
+| Both | `P`, `1`-`5` | Pause, then 1x, 2x, 4x, 8x, 16x time (Bee Mode always runs at 1x) |
+| Human | Drag / wheel | Orbit / zoom |
+| Human | Right-drag, Shift-drag, WASD | Pan |
+| Human | `Q` / `E`, `T`, `H` | Rotate, top-down toggle, home |
+| Human | Click | Select hive, flower patch or bee (then `Tab` flies the selected bee) |
+| Bee | `W A S D` | Fly (along your view direction) |
+| Bee | `Space` / `C` | Up / down |
+| Bee | `Shift` | Boost (costs energy) |
+| Bee | Mouse-drag or arrow keys, `F` | Look, toggle pointer-lock mouse look |
+| Bee | `E` (hold, hover on a bloom) | Collect nectar and pollen |
+| Bee | `Q` (hold at the entrance) | Waggle dance for the last patch you visited |
+
+## How the simulation works
+
+- `src/sim` is pure TypeScript with no Three.js, no `Math.random` and no `Date.now`. All randomness comes from a seeded RNG, so a given seed always plays out identically. `npm test` fails if a forbidden call sneaks in.
+- A fixed 30 Hz tick drives everything. One real second is one game minute; a day is 24 real minutes at 1x (90 seconds at 16x); a year is 24 days (four 6-day seasons).
+- About 300 representative bee agents stand in for the whole colony. Each agent's load is scaled by how many real bees it represents, so the hive's honey, pollen, brood and population follow real-world-shaped numbers.
+- Five temperate flowers with different nectar, pollen and bloom windows: Meadow Buttercup (early), Oxeye Daisy, Bird's-foot Trefoil, Red Clover, Common Knapweed (late).
+- Foragers remember good patches and **waggle dance** at the entrance. The dance encodes direction relative to the sun and distance, idle foragers decode it with a little noise, and fly to the indicated patch.
+- Weather (temperature, rain, wind, cloud) comes from season tables with a daily plan; bees stay home at night, in rain, wind or cold.
+
+```
+src/sim      deterministic simulation (state is plain JSON-able data)
+src/render   Three.js scene: terrain, sky, flowers, bees, hive, rain, bee vision
+src/game     fixed-step loop, mode manager, Human and Bee controllers
+src/input    keyboard / mouse / pointer lock
+src/ui       DOM HUD
+tests        vitest unit tests for the simulation
+e2e          Playwright smoke test
+```
+
+Dependency direction is `sim <- render/ui/input <- game <- main`. The UI and renderer only read sim state; the only writes are bee commands and beekeeper actions.

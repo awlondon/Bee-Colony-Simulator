@@ -1,0 +1,78 @@
+:root {
+  --honey: #f4b73a;
+  --honey-deep: #c98512;
+  --wax: #fff4d6;
+  --ink: #2a1c07;
+  --panel: rgba(30, 20, 6, 0.72);
+  --panel-line: rgba(244, 183, 58, 0.35);
+  --good: #8fd16a;
+  --warn: #ffb347;
+  --bad: #ff6b5e;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #8fc3f0; }
+canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+#hud { position: fixed; inset: 0; pointer-events: none; color: var(--wax); font-size: 13px; }
+#hud .panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+#hud h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--honey); }
+.topbar {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 14px; align-items: center; padding: 8px 14px !important;
+  white-space: nowrap;
+}
+.topbar .sep { width: 1px; height: 20px; background: var(--panel-line); }
+.topbar .big { font-size: 15px; font-weight: 700; }
+.btn {
+  pointer-events: auto; cursor: pointer; color: var(--ink); background: var(--honey);
+  border: 0; border-radius: 7px; padding: 5px 11px; font: inherit; font-weight: 700;
+}
+.btn:hover { background: #ffd070; }
+.btn.ghost { background: transparent; color: var(--wax); border: 1px solid var(--panel-line); padding: 3px 8px; }
+.btn.ghost.on { background: var(--honey); color: var(--ink); }
+.speed { display: flex; gap: 4px; }
+.side { position: absolute; top: 64px; left: 10px; width: 270px; display: flex; flex-direction: column; gap: 8px; }
+.right { position: absolute; top: 64px; right: 10px; width: 230px; display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
+.row b { color: #fff; font-weight: 600; }
+.bar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); overflow: hidden; margin: 2px 0 6px; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--honey); transition: width 0.2s; }
+.bar.energy > i { background: var(--good); }
+.bar.pollen > i { background: #ffd23f; }
+.bar.nectar > i { background: #ffb347; }
+.bar.low > i { background: var(--bad); }
+.hint {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: var(--panel); border: 1px solid var(--panel-line); border-radius: 999px;
+  padding: 6px 16px; font-size: 12px; color: #fbe9bd; white-space: nowrap;
+}
+.prompt {
+  position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%);
+  font-size: 16px; font-weight: 700; color: #fff; text-shadow: 0 1px 6px #000, 0 0 2px #000;
+  min-height: 22px; text-align: center;
+}
+.compass { width: 54px; height: 54px; border-radius: 50%; border: 2px solid var(--panel-line); position: relative; margin: 4px auto; }
+.compass .arrow {
+  position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+  margin: -20px 0 0 -7px; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 22px solid var(--honey);
+  transform-origin: 7px 20px;
+}
+.compass .dot { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #fff; }
+.mood { text-transform: capitalize; }
+.mood.calm { color: var(--good); } .mood.busy { color: var(--honey); }
+.mood.agitated { color: var(--warn); } .mood.defensive { color: var(--bad); }
+body[data-mode='bee'] .only-human, body[data-mode='human'] .only-bee { display: none !important; }
+body[data-mode='transition'] .only-human, body[data-mode='transition'] .only-bee { opacity: 0.35; }
+.crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.55); }
+.fatal {
+  position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center;
+  background: #24170a; color: var(--wax); pointer-events: auto; padding: 24px; font-size: 16px;
+}
+.fatal.show { display: flex; }

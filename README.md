@@ -61,3 +61,7 @@ e2e          Playwright smoke test
 ```
 
 Dependency direction is `sim <- render/ui/input <- game <- main`. The UI and renderer only read sim state; the only writes are bee commands and beekeeper actions.
+
+## Learning as you play
+
+A guided **tutorial** (bottom left, skippable, restartable with the `?` button) walks through orbiting, selecting the hive, inspecting, becoming a bee, collecting, depositing, dancing and coming back. About thirty **"Did you know?" facts** appear once each at the moment they matter: the first forage, a wasp raid, a pesticide drift, the first season change, the first time you visit a given flower, and so on. What you have already seen is remembered in the browser.

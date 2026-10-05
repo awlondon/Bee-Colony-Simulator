@@ -5,10 +5,20 @@ import { plantProblem } from '../sim/actions';
 import type { BeekeeperAction, SpeciesId } from '../sim/types';
 import { SimWorld } from '../sim/World';
 import { toastFor } from '../ui/events';
+import { FactEngine, type FactStorage } from '../ui/facts';
+import { Tutorial } from '../ui/Tutorial';
 import { Hud } from '../ui/Hud';
 import { BeeController } from './BeeController';
 import { HumanController } from './HumanController';
 import { GameMode, ModeManager } from './ModeManager';
+
+function safeStorage(): FactStorage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null; // blocked storage: everything still works, nothing is remembered
+  }
+}
 
 const MAX_TICKS_PER_FRAME = 64;
 const FRAME_BUDGET_MS = 9;
@@ -22,6 +32,8 @@ export class Game {
   readonly human: HumanController;
   readonly bee: BeeController;
   readonly modes: ModeManager;
+  readonly facts: FactEngine;
+  readonly tutorial: Tutorial;
   speed = 1;
   private acc = 0;
   private last = 0;
@@ -42,6 +54,9 @@ export class Game {
       { world: this.world, rig: this.renderer.rig, input: this.input },
       { [GameMode.Human]: this.human, [GameMode.Bee]: this.bee },
     );
+    const storage = safeStorage();
+    this.tutorial = new Tutorial(storage);
+    this.facts = new FactEngine((t) => this.hud.toast(t), storage);
     this.hud = new Hud(hudRoot, {
       onToggleMode: () => this.modes.toggle(),
       onSpeed: (s) => this.setSpeed(s),
@@ -51,7 +66,10 @@ export class Game {
       },
       onAction: (a) => this.act(a),
       onPlantMode: (sp) => this.human.setPlanting(sp),
+      onTutorialSkip: () => this.tutorial.skip(),
+      onTutorialRestart: () => this.tutorial.restart(),
     });
+    this.modes.onModeChanged = (m) => this.facts.trigger(`mode:${m}`);
     this.human.onPlant = (sp, pos) => this.act({ type: 'plantPatch', speciesId: sp, pos });
     this.human.onSelect = (s) => this.hud.setSelection(s);
   }
@@ -63,6 +81,10 @@ export class Game {
   }
 
   private lidTimer = 0;
+  private orbited = false;
+  private prevNectar = 0;
+  private prevCollected = 0;
+  private collectFactSpecies = '';
   private lastPlanting: SpeciesId | null = null;
 
   setSpeed(s: number): void {
@@ -72,6 +94,7 @@ export class Game {
 
   start(): void {
     this.modes.start();
+    this.facts.trigger('mode:human');
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
   }
@@ -105,11 +128,14 @@ export class Game {
     const alpha = this.effectiveSpeed() === 0 ? 1 : this.acc / SIM_DT;
 
     this.modes.update(dt, input, alpha);
-    for (const e of this.world.drainEvents()) {
+    const events = this.world.drainEvents();
+    for (const e of events) {
       if (e.kind === 'actionApplied' && e.data?.type === 'inspect') this.lidTimer = 4;
       const t = toastFor(e, this.world.state);
       if (t) this.hud.toast(t);
+      this.facts.onEvent(e);
     }
+    this.updateTeaching(dt, events);
     this.lidTimer = Math.max(0, this.lidTimer - dt);
     this.renderer.hive.openLid(this.lidTimer > 0);
 
@@ -132,6 +158,36 @@ export class Game {
     this.frames++;
     if (this.frames === 2) document.body.dataset.ready = 'true';
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /** Feed facts and the tutorial from what the player is doing right now. */
+  private updateTeaching(dt: number, events: readonly import('../sim/types').SimEvent[]): void {
+    const w = this.world.state;
+    const bee = this.world.possessedBee();
+    if (this.input.dragging || this.input.wheel !== 0) this.orbited = true;
+    if (bee?.state === 'collecting' && bee.targetPatchId !== null) {
+      const p = w.patches.find((x) => x.id === bee.targetPatchId);
+      if (p && p.speciesId !== this.collectFactSpecies) {
+        this.collectFactSpecies = p.speciesId;
+        this.facts.trigger(`collect:${p.speciesId}`);
+      }
+    }
+    if (bee && w.stats.nectarCollected > this.prevCollected + 1e-9) this.facts.trigger('deposit');
+    this.prevCollected = w.stats.nectarCollected;
+    this.facts.update(dt);
+
+    const done = this.tutorial.update(dt, {
+      world: w,
+      mode: this.modes.mode,
+      selection: this.human.selection,
+      orbited: this.orbited,
+      events,
+      bee,
+      prevNectar: this.prevNectar,
+    });
+    this.prevNectar = bee?.load.nectar ?? 0;
+    if (done) this.hud.toast({ kind: 'good', text: `Done: ${done.title}`, ttl: 2.5 });
+    this.hud.setTutorial(this.tutorial.current);
   }
 
   get stats(): { visibleBees: number; frames: number } {

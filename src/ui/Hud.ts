@@ -3,6 +3,7 @@ import { alertActionHtml, gardenHtml, parseAction, selectionActionsHtml } from '
 import { analyticsHtml } from './AnalyticsPanel';
 import { Minimap } from './Minimap';
 import { Toasts, type ToastOptions } from './Toasts';
+import type { TutorialView } from './Tutorial';
 import { FLOWER_SPECIES } from '../sim/flora';
 import { honeyCapacity, totalBrood } from '../sim/colony';
 import type { Selection } from '../game/HumanController';
@@ -28,6 +29,7 @@ const TEMPLATE = /* html */ `
     <button class="btn ghost" data-speed="16">16×</button>
   </span>
   <span class="sep"></span>
+  <button class="btn ghost" id="h-help" title="Restart the tutorial">?</button>
   <button class="btn" id="h-mode">Become a bee (Tab)</button>
 </div>
 
@@ -79,6 +81,7 @@ const TEMPLATE = /* html */ `
 <div class="crosshair only-bee"></div>
 <div class="prompt only-bee" id="b-prompt"></div>
 <div class="hint" id="h-hint"></div>
+<div class="tutorial panel" id="h-tutorial" style="display:none"></div>
 <div class="fatal" id="h-fatal"></div>
 `;
 
@@ -88,6 +91,8 @@ export interface HudCallbacks {
   onPossess: (beeId: number) => void;
   onAction: (a: BeekeeperAction) => void;
   onPlantMode: (s: SpeciesId | null) => void;
+  onTutorialSkip: () => void;
+  onTutorialRestart: () => void;
 }
 
 export interface HudExtra {
@@ -118,6 +123,10 @@ export class Hud {
     this.get('h-speed').addEventListener('click', (ev) => {
       const t = (ev.target as HTMLElement).closest('button');
       if (t) cb.onSpeed(Number(t.dataset.speed));
+    });
+    this.get('h-help').addEventListener('click', () => cb.onTutorialRestart());
+    this.get('h-tutorial').addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('[data-tut="skip"]')) cb.onTutorialSkip();
     });
     this.toasts = new Toasts(root);
     this.minimap = new Minimap(this.get('m-host'));
@@ -166,6 +175,16 @@ export class Hud {
     const f = this.get('h-fatal');
     f.textContent = message;
     f.classList.add('show');
+  }
+
+  setTutorial(v: TutorialView | null): void {
+    const el = this.get('h-tutorial');
+    el.style.display = v ? '' : 'none';
+    if (!v) return;
+    this.setHtml(
+      'h-tutorial',
+      `<h3>Tutorial · ${v.step}/${v.total}</h3><b>${v.title}</b><div>${v.text}</div><div class="tut-bar"><i style="width:${((v.step - 1) / v.total) * 100}%"></i></div><button class="btn ghost small" data-tut="skip">Skip tutorial</button>`,
+    );
   }
 
   toast(o: ToastOptions): void {

@@ -119,7 +119,8 @@ export function stepThreats(w: WorldState, rng: Rng, gdt: number, push: (e: SimE
         t.timer += gmin;
         const a = w.tick * 0.05 + t.id;
         seek(t, { x: entrance.x + Math.cos(a) * 1.4, y: entrance.y + 0.5 + Math.sin(a * 1.7) * 0.3, z: entrance.z + 1.4 + Math.sin(a) * 1.0 }, WASP_SPEED, dt);
-        c.adults.workers = Math.max(0, c.adults.workers - t.killsPerMinute * gmin);
+        const guardedDoor = c.entranceClosed ? 0.12 : 1;
+        c.adults.workers = Math.max(0, c.adults.workers - t.killsPerMinute * guardedDoor * gmin);
         t.hp -= c.roles.guards * GUARD_DAMAGE * gmin;
         if (t.hp <= 0) {
           t.state = 'flee';

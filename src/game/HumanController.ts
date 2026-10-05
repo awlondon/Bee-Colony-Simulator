@@ -3,6 +3,7 @@ import { makePose, type CameraPose, type CameraRig } from '../render/CameraRig';
 import { beeVisible } from '../sim/bee';
 import { heightAt } from '../sim/terrain';
 import type { Input } from '../input/Input';
+import type { SpeciesId, Vec3 } from '../sim/types';
 import type { SimWorld } from '../sim/World';
 import type { Controller, GameMode } from './ModeManager';
 
@@ -36,6 +37,9 @@ function raySphere(origin: THREE.Vector3, dir: THREE.Vector3, c: THREE.Vector3, 
 export class HumanController implements Controller {
   selection: Selection = null;
   onSelect: ((s: Selection) => void) | null = null;
+  planting: SpeciesId | null = null;
+  plantHover: Vec3 | null = null;
+  onPlant: ((species: SpeciesId, pos: Vec3) => void) | null = null;
   private orbit: Orbit = { target: new THREE.Vector3(3, 1.5, 9), distance: 27, yaw: 0.45, pitch: 0.52 };
   private ray = new THREE.Raycaster();
   private pose = makePose();
@@ -52,6 +56,34 @@ export class HumanController implements Controller {
 
   exit(): void {
     /* orbit pose is retained so the camera returns here */
+    this.planting = null;
+    this.plantHover = null;
+  }
+
+  setPlanting(species: SpeciesId | null): void {
+    this.planting = species;
+    if (!species) this.plantHover = null;
+  }
+
+  viewTarget(): { x: number; z: number } {
+    return { x: this.orbit.target.x, z: this.orbit.target.z };
+  }
+
+  /** Where the mouse ray meets the terrain. */
+  private groundAt(px: number, py: number): Vec3 | null {
+    const { w, h } = this.viewSize();
+    this.ray.setFromCamera(new THREE.Vector2((px / w) * 2 - 1, -(py / h) * 2 + 1), this.rig.camera);
+    const { origin, direction } = this.ray.ray;
+    if (direction.y > -0.02) return null;
+    let t = -origin.y / direction.y;
+    for (let i = 0; i < 6; i++) {
+      const x = origin.x + direction.x * t;
+      const z = origin.z + direction.z * t;
+      t = (heightAt(x, z) - origin.y) / direction.y;
+    }
+    const x = origin.x + direction.x * t;
+    const z = origin.z + direction.z * t;
+    return { x, y: heightAt(x, z), z };
   }
 
   select(s: Selection): void {
@@ -101,7 +133,17 @@ export class HumanController implements Controller {
     o.target.z = Math.max(-lim, Math.min(lim, o.target.z));
     o.target.y = heightAt(o.target.x, o.target.z) + 1.2;
 
-    for (const c of input.clicks) if (c.button === 0) this.pick(c.x, c.y);
+    if (this.planting) {
+      if (input.justPressed('Escape')) this.setPlanting(null);
+      else this.plantHover = this.groundAt(input.mouseX, input.mouseY);
+    }
+    for (const c of input.clicks) {
+      if (c.button !== 0) continue;
+      if (this.planting) {
+        const pos = this.groundAt(c.x, c.y);
+        if (pos) this.onPlant?.(this.planting, pos);
+      } else this.pick(c.x, c.y);
+    }
   }
 
   private pick(px: number, py: number): void {
@@ -132,7 +174,15 @@ export class HumanController implements Controller {
     }
     const hp = s.colony.hivePos;
     const th = raySphere(origin, direction, c.set(hp.x, hp.y + 0.4 + s.colony.capacity.supers * 0.3, hp.z), 1.5);
-    if (th < best) {
+    // Bees milling around the entrance must not make the hive unclickable.
+    const hiveCentre = c.set(hp.x, hp.y, hp.z);
+    const beeNearHive =
+      sel?.kind === 'bee' &&
+      (() => {
+        const bee = s.bees.find((b) => b.id === (sel as { id: number }).id);
+        return !!bee && Math.hypot(bee.pos.x - hiveCentre.x, bee.pos.z - hiveCentre.z) < 3.5;
+      })();
+    if (th < best || (th < Infinity && beeNearHive)) {
       best = th;
       sel = { kind: 'hive' };
     }

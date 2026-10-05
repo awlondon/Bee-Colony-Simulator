@@ -51,3 +51,13 @@ export const FORAGE_MAX_WIND = 0.7;
 // Real foragers make ~25 trips a day, so a small per-trip rate adds up to a large daily loss.
 export const POISON_LETHALITY = 0.03;
 export const POISON_HEALTH_PER_BEE = 1e-5;
+
+// Beekeeper economy
+export const ENTRANCE_CLOSE_LIMIT_MINUTES = 18 * 60;
+export const INSPECT_COOLDOWN_MINUTES = 30;
+export const TREAT_COOLDOWN_MINUTES = 1440;
+export const MAX_SUPERS = 4;
+export const COST = { super: 40, syrupPerKg: 6, mites: 25, plant: 15, trap: 8, flush: 20 } as const;
+export const HONEY_PRICE_PER_KG = 9;
+export const HONEY_RESERVE_KG = 7; // never harvest below this
+export const POLLINATION_INCOME_PER_KG = 3;

@@ -1,13 +1,14 @@
+import { applyAction } from './actions';
 import { beeVisible, createBees, emptyCommand, resumeFromState, stepBee, type BeeCtx } from './bee';
 import { deriveClock, makeClock, stepClock } from './clock';
 import { deriveBrood, deriveRoles, makeColony, stepColony, totalBrood } from './colony';
-import { MAX_AGENTS, SIM_DT, TIME_SCALE } from './constants';
+import { MAX_AGENTS, POLLINATION_INCOME_PER_KG, SIM_DT, TIME_SCALE } from './constants';
 import { generateMeadow, stepPatches } from './flora';
 import { Rng } from './rng';
 import { heightAt } from './terrain';
 import { stepThreats } from './threats';
 import { canForage, makeWeather, stepWeather } from './weather';
-import type { Bee, BeeCommand, SimEvent, WorldState } from './types';
+import type { ActionResult, Bee, BeeCommand, BeekeeperAction, SimEvent, WorldState } from './types';
 
 const MAX_EVENTS = 400;
 const MAX_HISTORY = 240;
@@ -79,6 +80,10 @@ export class SimWorld {
   setTime(totalMinutes: number): void {
     this.state.clock.totalMinutes = totalMinutes;
     deriveClock(this.state.clock);
+  }
+
+  applyAction(a: BeekeeperAction): ActionResult {
+    return applyAction(this.state, this.rng, a, this.push);
   }
 
   setBeeCommand(cmd: BeeCommand): void {
@@ -160,7 +165,7 @@ export class SimWorld {
 
     const ctx: BeeCtx = {
       scale: Math.max(1, s.colony.roles.foragers + s.colony.roles.nurses + s.colony.roles.guards) / s.bees.length,
-      forageOk: !s.colony.collapsed && canForage(s),
+      forageOk: !s.colony.collapsed && !s.colony.entranceClosed && canForage(s),
       gmin: gdt / 60,
       push: this.push,
     };
@@ -168,6 +173,7 @@ export class SimWorld {
     for (const b of s.bees) stepBee(b, s, this.rng, dt, ctx, b.possessed ? cmd : emptyCommand());
 
     stepColony(s, this.rng, gdt, this.push);
+    this.settleIncome();
     this.sampleHistory();
   }
 
@@ -194,6 +200,16 @@ export class SimWorld {
       stepColony(s, this.rng, gdt, this.push);
       this.sampleHistory();
     }
+  }
+
+  /** Neighbouring farms pay a little for pollination: income follows nectar actually collected. */
+  private settleIncome(): void {
+    const s = this.state;
+    if (s.flags.incomeDay === s.clock.day) return;
+    const prev = typeof s.flags.incomeNectar === 'number' ? s.flags.incomeNectar : s.stats.nectarCollected;
+    s.keeper.money += Math.round((s.stats.nectarCollected - prev) * POLLINATION_INCOME_PER_KG);
+    s.flags.incomeNectar = s.stats.nectarCollected;
+    s.flags.incomeDay = s.clock.day;
   }
 
   private sampleHistory(): void {

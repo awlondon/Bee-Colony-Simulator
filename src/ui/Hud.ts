@@ -1,15 +1,21 @@
 import './hud.css';
+import { alertActionHtml, gardenHtml, parseAction, selectionActionsHtml } from './ActionPanel';
+import { analyticsHtml } from './AnalyticsPanel';
+import { Minimap } from './Minimap';
+import { Toasts, type ToastOptions } from './Toasts';
 import { FLOWER_SPECIES } from '../sim/flora';
 import { honeyCapacity, totalBrood } from '../sim/colony';
 import type { Selection } from '../game/HumanController';
 import { GameMode } from '../game/ModeManager';
-import type { Bee, WorldState } from '../sim/types';
+import type { Bee, BeekeeperAction, SpeciesId, WorldState } from '../sim/types';
 
 const TEMPLATE = /* html */ `
 <div class="panel topbar">
   <span class="big" id="h-date">Day 1</span>
   <span id="h-season">Summer</span>
   <span id="h-clock">08:00</span>
+  <span class="sep"></span>
+  <span id="h-money" title="Funds. Earned from honey sales and pollination">Funds 120</span>
   <span class="sep"></span>
   <span id="h-weather">☀ 21°C</span>
   <span class="sep"></span>
@@ -27,10 +33,10 @@ const TEMPLATE = /* html */ `
 
 <div class="alerts" id="h-alerts"></div>
 
-<div class="side only-human panel" id="p-colony">
+<div class="side only-human" id="p-left"><div class="panel" id="p-colony">
   <h3>Colony</h3>
   <div class="row"><span>Workers</span><b id="c-workers">0</b></div>
-  <div class="row"><span>Fora · Nurse · Guard</span><b id="c-roles">0 · 0 · 0</b></div>
+  <div class="row"><span>Roles F / N / G</span><b id="c-roles">0 · 0 · 0</b></div>
   <div class="row"><span>Brood</span><b id="c-brood">0</b></div>
   <div class="row"><span>Honey &amp; nectar</span><b id="c-honey">0 kg</b></div>
   <div class="bar"><i id="c-honey-bar"></i></div>
@@ -41,12 +47,19 @@ const TEMPLATE = /* html */ `
   <div class="bar energy"><i id="c-health-bar"></i></div>
   <div class="row"><span>Mood</span><b id="c-mood" class="mood calm">calm</b></div>
 </div>
-
-<div class="right only-human panel" id="p-select">
-  <h3>Selection</h3>
-  <div id="s-body">Click the hive, a flower patch or a bee.</div>
-  <div style="margin-top:8px"><button class="btn" id="s-possess" style="display:none">Fly this bee</button></div>
+<div class="panel" id="p-analytics"><h3>Trends</h3><div id="a-body"></div></div>
 </div>
+
+<div class="right only-human">
+  <div class="panel" id="p-select">
+    <h3>Selection</h3>
+    <div id="s-body">Click the hive, a flower patch or a bee.</div>
+    <div class="actions" id="s-actions"></div>
+    <div style="margin-top:8px"><button class="btn" id="s-possess" style="display:none">Fly this bee</button></div>
+  </div>
+  <div class="panel" id="p-garden"><h3>Garden</h3><div class="actions" id="g-body"></div></div>
+</div>
+<div class="minimap panel" id="p-map"><h3>Forage map</h3><div id="m-host"></div></div>
 
 <div class="side only-bee panel" id="p-bee">
   <h3>Your bee</h3>
@@ -72,6 +85,13 @@ export interface HudCallbacks {
   onToggleMode: () => void;
   onSpeed: (s: number) => void;
   onPossess: (beeId: number) => void;
+  onAction: (a: BeekeeperAction) => void;
+  onPlantMode: (s: SpeciesId | null) => void;
+}
+
+export interface HudExtra {
+  view: { x: number; z: number } | null;
+  yaw: number | null;
 }
 
 const fmt = (n: number, d = 0): string => n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
@@ -81,6 +101,11 @@ export class Hud {
   private el = new Map<string, HTMLElement>();
   private acc = 0;
   private selection: Selection = null;
+  private planting: SpeciesId | null = null;
+  private toasts: Toasts;
+  private minimap: Minimap;
+  private slow = 0;
+  private lastHtml = new Map<string, string>();
 
   constructor(
     root: HTMLElement,
@@ -92,6 +117,18 @@ export class Hud {
     this.get('h-speed').addEventListener('click', (ev) => {
       const t = (ev.target as HTMLElement).closest('button');
       if (t) cb.onSpeed(Number(t.dataset.speed));
+    });
+    this.toasts = new Toasts(root);
+    this.minimap = new Minimap(this.get('m-host'));
+    root.addEventListener('click', (ev) => {
+      const t = ev.target as HTMLElement;
+      const plant = t.closest<HTMLElement>('[data-plant]')?.dataset.plant as SpeciesId | undefined;
+      if (plant) {
+        cb.onPlantMode(this.planting === plant ? null : plant);
+        return;
+      }
+      const act = parseAction(t);
+      if (act) cb.onAction(act);
     });
     this.get('s-possess').addEventListener('click', () => {
       if (this.selection?.kind === 'bee') cb.onPossess(this.selection.id);
@@ -109,6 +146,15 @@ export class Hud {
     if (e.textContent !== text) e.textContent = text;
   }
 
+  /** Replace an element's HTML only when what we would render has changed. Compares with the last
+   * string we rendered, not innerHTML (which the browser re-serialises), so stable UI is never rebuilt
+   * under the player's mouse. */
+  private setHtml(id: string, html: string): void {
+    if (this.lastHtml.get(id) === html) return;
+    this.lastHtml.set(id, html);
+    this.get(id).innerHTML = html;
+  }
+
   private bar(id: string, frac: number): void {
     const e = this.get(id);
     const w = `${Math.max(0, Math.min(1, frac)) * 100}%`;
@@ -121,6 +167,14 @@ export class Hud {
     f.classList.add('show');
   }
 
+  toast(o: ToastOptions): void {
+    this.toasts.show(o);
+  }
+
+  setPlanting(s: SpeciesId | null): void {
+    this.planting = s;
+  }
+
   setSelection(s: Selection): void {
     this.selection = s;
   }
@@ -129,10 +183,11 @@ export class Hud {
     this.get('h-speed').querySelectorAll('button').forEach((b) => b.classList.toggle('on', Number(b.dataset.speed) === speed));
   }
 
-  update(dt: number, w: WorldState, mode: GameMode, bee: Bee | undefined, prompt: string, force = false): void {
+  update(dt: number, w: WorldState, mode: GameMode, bee: Bee | undefined, prompt: string, extra: HudExtra, force = false): void {
     this.acc += dt;
     if (!force && this.acc < 0.1) return;
     this.acc = 0;
+    this.slow = (this.slow + 1) % 10;
     const c = w.clock;
     const wx = w.weather;
     this.set('h-date', `Day ${c.day + 1}`);
@@ -143,6 +198,7 @@ export class Hud {
     const night = c.minuteOfDay < 5 * 60 || c.minuteOfDay > 21 * 60;
     const glyph = wx.rain > 0.15 ? '🌧' : night ? '🌙' : wx.cloud > 0.6 ? '☁' : wx.cloud > 0.35 ? '⛅' : '☀';
     this.set('h-weather', `${glyph} ${fmt(wx.tempC, 0)}°C · wind ${Math.round(wx.wind * 100)}%`);
+    this.set('h-money', `Funds ${Math.floor(w.keeper.money)}`);
     this.set('h-mode', mode === GameMode.Human ? 'Become a bee (Tab)' : 'Back to the hive (Tab)');
 
     const col = w.colony;
@@ -162,7 +218,12 @@ export class Hud {
     mood.className = `mood ${col.mood}`;
 
     this.updateAlerts(w, mode);
-    if (mode === GameMode.Human) this.updateSelection(w);
+    this.minimap.draw(w, mode === GameMode.Human ? extra.view : null, mode === GameMode.Bee ? extra.yaw : null);
+    if (mode === GameMode.Human) {
+      this.updateSelection(w);
+      this.setHtml('g-body', gardenHtml(w, this.planting));
+      if (this.slow === 0 || force) this.setHtml('a-body', analyticsHtml(w.history));
+    }
     if (bee) this.updateBee(w, bee, prompt);
 
     this.set(
@@ -178,29 +239,37 @@ export class Hud {
     let wasps = 0;
     let patches = 0;
     let snap = false;
+    let waspId = -1;
+    let pestId = -1;
     for (const t of w.threats) {
-      if (t.kind === 'wasp' && t.state !== 'dead' && t.state !== 'flee') wasps++;
-      else if (t.kind === 'pesticide') patches += t.patchIds.length;
-      else if (t.kind === 'coldSnap') snap = true;
+      if (t.kind === 'wasp' && t.state !== 'dead' && t.state !== 'flee') {
+        wasps++;
+        waspId = t.id;
+      } else if (t.kind === 'pesticide') {
+        patches += t.patchIds.length;
+        pestId = t.id;
+      } else if (t.kind === 'coldSnap') snap = true;
     }
     if (wasps > 0) {
       const tip = mode === GameMode.Bee ? ' — fly close and hold R to sting it' : '';
-      alerts.push({ cls: 'bad', text: `⚠ Wasp raid at the entrance${tip}` });
+      const trap = mode === GameMode.Human ? ' ' + alertActionHtml('Set trap', { type: 'removeThreat', threatId: waspId }, 8) : '';
+      alerts.push({ cls: 'bad', text: `⚠ Wasp raid at the entrance${tip}${trap}` });
     }
-    if (patches > 0) alerts.push({ cls: 'warn', text: `☣ Pesticide drift: ${patches} flower patch${patches > 1 ? 'es' : ''} contaminated` });
+    if (patches > 0) {
+      const flush = mode === GameMode.Human ? ' ' + alertActionHtml('Flush', { type: 'removeThreat', threatId: pestId }, 20) : '';
+      alerts.push({ cls: 'warn', text: `☣ Pesticide drift: ${patches} flower patch${patches > 1 ? 'es' : ''} contaminated${flush}` });
+    }
     if (snap) alerts.push({ cls: 'warn', text: `❄ Cold snap: ${fmt(w.weather.tempC, 0)}°C, bees are clustering` });
     if (w.colony.starving) alerts.push({ cls: 'bad', text: '⚠ The colony is starving' });
     else if (w.colony.stores.honey < 1.2 && !w.colony.collapsed) alerts.push({ cls: 'warn', text: 'Honey stores are very low' });
     if (!w.colony.queen.alive) alerts.push({ cls: 'bad', text: '⚠ The queen has died' });
     if (w.colony.collapsed) alerts.push({ cls: 'bad', text: '☠ The colony has collapsed' });
     const html = alerts.map((a) => `<div class="alert ${a.cls}">${a.text}</div>`).join('');
-    const el = this.get('h-alerts');
-    if (el.innerHTML !== html) el.innerHTML = html;
+    this.setHtml('h-alerts', html);
   }
 
   private updateSelection(w: WorldState): void {
     const s = this.selection;
-    const body = this.get('s-body');
     const btn = this.get('s-possess');
     btn.style.display = 'none';
     let html = 'Click the hive, a flower patch or a bee.';
@@ -236,7 +305,8 @@ export class Hud {
           ? `<div class="row"><b>Wasp raider</b></div><div class="row"><span>Vigour</span><b>${Math.max(0, Math.round(t.hp))}%</b></div><div class="row"><span>State</span><b>${t.state}</b></div>`
           : '<div class="row"><b>Wasp raider</b></div>';
     }
-    if (body.innerHTML !== html) body.innerHTML = html;
+    this.setHtml('s-body', html);
+    this.setHtml('s-actions', selectionActionsHtml(s, w));
   }
 
   private updateBee(w: WorldState, b: Bee, prompt: string): void {

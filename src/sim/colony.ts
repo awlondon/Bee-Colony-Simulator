@@ -1,6 +1,7 @@
 import {
   BROOD_DAYS,
   EGG_DAYS,
+  ENTRANCE_CLOSE_LIMIT_MINUTES,
   FRAME_KG,
   LARVA_DAYS,
   LARVA_POLLEN_KG_DAY,
@@ -34,6 +35,8 @@ export function makeColony(hivePos: Vec3, rng: Rng): Colony {
     lastInspectMinute: -9999,
     starving: false,
     collapsed: false,
+    entranceClosed: false,
+    entranceClosedSince: 0,
   };
   deriveBrood(c);
   deriveRoles(c, 0);
@@ -211,6 +214,15 @@ export function stepColony(w: WorldState, rng: Rng, gdt: number, push: (e: SimEv
   const eq = w.weather.tempC + (NEST_TARGET_C - w.weather.tempC) * heatPower;
   c.temperature += (eq - c.temperature) * (1 - Math.exp(-hours * 0.8));
 
+  // A closed entrance protects the hive but stresses the colony; it reopens by itself.
+  if (c.entranceClosed) {
+    c.health = Math.max(0, c.health - 0.1 * days);
+    if (w.clock.totalMinutes - c.entranceClosedSince > ENTRANCE_CLOSE_LIMIT_MINUTES) {
+      c.entranceClosed = false;
+      push({ kind: 'actionApplied', t: w.clock.totalMinutes, data: { type: 'openEntrance', auto: true } });
+    }
+  }
+
   // Mites and health.
   c.miteLoad = Math.min(1, c.miteLoad + 0.003 * days * (1 + totalBrood(c) / 8000));
   let dHealth = 0.05 * days; // recovery
@@ -228,7 +240,7 @@ export function stepColony(w: WorldState, rng: Rng, gdt: number, push: (e: SimEv
   const recentlyInspected = w.clock.totalMinutes - c.lastInspectMinute < 20;
   let mood: Mood = 'calm';
   if (hasWasp) mood = 'defensive';
-  else if (recentlyInspected || c.health < 0.4 || c.starving) mood = 'agitated';
+  else if (recentlyInspected || c.entranceClosed || c.health < 0.4 || c.starving) mood = 'agitated';
   else if (c.roles.foragers > 0 && w.bees.some((b) => b.state === 'collecting' || b.state === 'forageOutbound')) mood = 'busy';
   c.mood = mood;
   deriveRoles(c, mood === 'defensive' ? 1 : 0);

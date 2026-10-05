@@ -148,6 +148,8 @@ export interface Colony {
   lastInspectMinute: number;
   starving: boolean;
   collapsed: boolean;
+  entranceClosed: boolean;
+  entranceClosedSince: number;
 }
 
 export type Threat =
@@ -200,7 +202,9 @@ export type BeekeeperAction =
   | { type: 'treatMites' }
   | { type: 'plantPatch'; speciesId: SpeciesId; pos: Vec3 }
   | { type: 'removeThreat'; threatId: number }
-  | { type: 'harvestHoney'; kg: number };
+  | { type: 'harvestHoney'; kg: number }
+  | { type: 'closeEntrance' }
+  | { type: 'openEntrance' };
 
 export interface ActionResult {
   ok: boolean;

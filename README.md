@@ -35,6 +35,12 @@ npm run test:e2e   # headless Chromium smoke test (screenshots in e2e/screenshot
 | Bee | `E` (hold, hover on a bloom) | Collect nectar and pollen |
 | Bee | `Q` (hold at the entrance) | Waggle dance for the last patch you visited |
 
+## Running the apiary (Human Mode)
+
+Click the hive to get beekeeper actions: **Inspect** (opens the lid, reveals queen, brood and mites), **Add super** (more honey storage), **Feed syrup**, **Treat mites**, **Harvest honey** (sold for funds, the bees always keep a reserve) and **Close entrance** (keeps wasps out and foragers in, but stresses the colony and reopens by itself after 18 hours).
+The **Garden** panel plants new forage patches: pick a species, then click the meadow (the ring turns red where planting is not allowed). Threat alerts at the top offer one-click answers: set a wasp trap, or flush pesticide-contaminated blooms. **Trends** shows sparklines of the colony over the last four days and the **Forage map** shows patches, bees, wasps and where you are.
+Funds come from honey sales and a small daily pollination fee proportional to the nectar your bees bring in.
+
 ## How the simulation works
 
 - `src/sim` is pure TypeScript with no Three.js, no `Math.random` and no `Date.now`. All randomness comes from a seeded RNG, so a given seed always plays out identically. `npm test` fails if a forbidden call sneaks in.

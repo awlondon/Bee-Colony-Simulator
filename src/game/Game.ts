@@ -1,7 +1,10 @@
 import { Input } from '../input/Input';
 import { Renderer } from '../render/Renderer';
 import { MAX_AGENTS, SIM_DT } from '../sim/constants';
+import { plantProblem } from '../sim/actions';
+import type { BeekeeperAction, SpeciesId } from '../sim/types';
 import { SimWorld } from '../sim/World';
+import { toastFor } from '../ui/events';
 import { Hud } from '../ui/Hud';
 import { BeeController } from './BeeController';
 import { HumanController } from './HumanController';
@@ -46,9 +49,21 @@ export class Game {
         this.human.select({ kind: 'bee', id });
         this.modes.switchTo(GameMode.Bee);
       },
+      onAction: (a) => this.act(a),
+      onPlantMode: (sp) => this.human.setPlanting(sp),
     });
+    this.human.onPlant = (sp, pos) => this.act({ type: 'plantPatch', speciesId: sp, pos });
     this.human.onSelect = (s) => this.hud.setSelection(s);
   }
+
+  /** Apply a beekeeper action and tell the player what happened. */
+  act(a: BeekeeperAction): void {
+    const r = this.world.applyAction(a);
+    this.hud.toast({ kind: r.ok ? 'good' : 'warn', text: r.message, ttl: r.ok ? 6 : 5 });
+  }
+
+  private lidTimer = 0;
+  private lastPlanting: SpeciesId | null = null;
 
   setSpeed(s: number): void {
     this.speed = s;
@@ -90,9 +105,28 @@ export class Game {
     const alpha = this.effectiveSpeed() === 0 ? 1 : this.acc / SIM_DT;
 
     this.modes.update(dt, input, alpha);
-    this.world.drainEvents();
+    for (const e of this.world.drainEvents()) {
+      if (e.kind === 'actionApplied' && e.data?.type === 'inspect') this.lidTimer = 4;
+      const t = toastFor(e, this.world.state);
+      if (t) this.hud.toast(t);
+    }
+    this.lidTimer = Math.max(0, this.lidTimer - dt);
+    this.renderer.hive.openLid(this.lidTimer > 0);
+
+    const planting = this.modes.mode === GameMode.Human ? this.human.planting : null;
+    if (planting !== this.lastPlanting) {
+      this.lastPlanting = planting;
+      this.hud.setPlanting(planting);
+      this.canvas.classList.toggle('planting', planting !== null);
+    }
+    const hover = planting ? this.human.plantHover : null;
+    this.renderer.setGhost(hover, hover ? plantProblem(this.world.state, hover.x, hover.z) === null : false);
+
     this.visibleBees = this.renderer.render(this.world.state, alpha, dt);
-    this.hud.update(dt, this.world.state, this.modes.mode, this.world.possessedBee(), this.bee.prompt);
+    this.hud.update(dt, this.world.state, this.modes.mode, this.world.possessedBee(), this.bee.prompt, {
+      view: this.human.viewTarget(),
+      yaw: this.bee.yaw,
+    });
     input.endFrame();
 
     this.frames++;

@@ -19,6 +19,7 @@ export class Renderer {
   readonly hive = new HiveRenderer();
   readonly weatherFx = new WeatherFX();
   private fog = new THREE.Fog(0xbfd8f0, 80, 260);
+  private ghost: THREE.Mesh;
   private clockTime = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -27,9 +28,24 @@ export class Renderer {
     this.rig = new CameraRig(1);
     this.scene.fog = this.fog;
     this.sky = new Sky(this.scene);
+    this.ghost = new THREE.Mesh(
+      new THREE.RingGeometry(4.2, 4.7, 48).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x66ff88, transparent: true, opacity: 0.85, depthTest: false, side: THREE.DoubleSide }),
+    );
+    this.ghost.visible = false;
+    this.ghost.renderOrder = 5;
+    this.scene.add(this.ghost);
     this.scene.add(this.terrain.group, this.flowers.group, this.bees.group, this.hive.group, this.weatherFx.lines);
     this.resize();
     window.addEventListener('resize', () => this.resize());
+  }
+
+  /** Show or hide the planting cursor on the ground. */
+  setGhost(pos: { x: number; y: number; z: number } | null, ok: boolean): void {
+    this.ghost.visible = pos !== null;
+    if (!pos) return;
+    this.ghost.position.set(pos.x, pos.y + 0.15, pos.z);
+    (this.ghost.material as THREE.MeshBasicMaterial).color.set(ok ? 0x66ff88 : 0xff6655);
   }
 
   resize(): void {

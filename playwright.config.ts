@@ -8,6 +8,7 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 120_000,
   retries: 0,
+  workers: 1, // software WebGL is CPU-heavy; parallel browsers starve each other
   reporter: [['list']],
   use: {
     baseURL: 'http://localhost:4173',

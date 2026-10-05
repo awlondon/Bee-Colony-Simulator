@@ -171,8 +171,8 @@ export class FlowerRenderer {
       }
       const count = Math.max(1, flowers.length);
       const stemGeo = new THREE.CylinderGeometry(0.025, 0.04, 1, 5).translate(0, 0.5, 0);
-      const stemMat = patchMaterial(new THREE.MeshLambertMaterial({ color: STEM_COLOR, flatShading: true }));
-      const headMat = patchMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), { uvGuide: sp.uvGuide });
+      const stemMat = patchMaterial(new THREE.MeshLambertMaterial({ color: STEM_COLOR, flatShading: true }), { sway: 'stem' });
+      const headMat = patchMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), { uvGuide: sp.uvGuide, sway: 'head' });
       const stems = new THREE.InstancedMesh(stemGeo, stemMat, count);
       const heads = new THREE.InstancedMesh(headGeometry(sp), headMat, count);
       stems.count = flowers.length;

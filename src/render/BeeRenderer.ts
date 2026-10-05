@@ -59,6 +59,7 @@ export class BeeRenderer {
   private wingsL: THREE.InstancedMesh;
   private wingsR: THREE.InstancedMesh;
   private wasps: THREE.InstancedMesh;
+  private hero: THREE.InstancedMesh;
   private tmpM = new THREE.Matrix4();
   private wingM = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -80,7 +81,14 @@ export class BeeRenderer {
     this.wingsL = new THREE.InstancedMesh(wingGeometry(1), wingMat, MAX_BEES);
     this.wingsR = new THREE.InstancedMesh(wingGeometry(-1), wingMat, MAX_BEES);
     this.wasps = new THREE.InstancedMesh(waspBodyGeometry(), bodyMat, 24);
-    for (const m of [this.bodies, this.wingsL, this.wingsR, this.wasps]) {
+    // The player's own bee keeps its true colours in bee vision and glows a little, so it always
+    // reads clearly against the meadow.
+    this.hero = new THREE.InstancedMesh(
+      beeBodyGeometry(),
+      new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, emissive: new THREE.Color(0x4a3000) }),
+      1,
+    );
+    for (const m of [this.bodies, this.wingsL, this.wingsR, this.wasps, this.hero]) {
       m.frustumCulled = false;
       m.count = 0;
       this.group.add(m);
@@ -95,12 +103,14 @@ export class BeeRenderer {
   sync(world: WorldState, alpha: number, time: number, cam: THREE.Vector3): number {
     this.cam = cam;
     let n = 0;
+    this.hero.count = 0;
     for (const b of world.bees) {
       if (n >= MAX_BEES) break;
       if (!beeVisible(b)) continue;
       this.place(b, n, alpha, time);
       n++;
     }
+    this.hero.instanceMatrix.needsUpdate = true;
     this.bodies.count = n;
     this.wingsL.count = n;
     this.wingsR.count = n;
@@ -131,11 +141,17 @@ export class BeeRenderer {
     const speed = Math.hypot(b.vel.x, b.vel.y, b.vel.z);
     // Keep bees legible from the strategic camera: grow them gently with distance.
     const far = Math.min(3.2, Math.max(1, this.p.distanceTo(this.cam) / 16));
-    const hero = b.possessed ? 1.9 : far * 0.7;
+    const hero = b.possessed ? 2.2 : far * 0.7;
     this.orient(b.yaw, b.pitch, Math.sin(time * 3 + b.id) * 0.05 * Math.min(1, speed));
     this.s.set(hero, hero, hero);
     this.tmpM.compose(this.p, this.q, this.s);
+    if (b.possessed) {
+      this.hero.setMatrixAt(0, this.tmpM);
+      this.hero.count = 1;
+      this.tmpM.makeScale(0, 0, 0); // hide the shared copy
+    }
     this.bodies.setMatrixAt(i, this.tmpM);
+    if (b.possessed) this.tmpM.compose(this.p, this.q, this.s);
     const flapping = b.state !== 'guard' || speed > 0.2;
     const flap = flapping ? Math.sin(time * 70 + b.id * 1.3) * 0.75 : 0.2;
     for (const side of [1, -1] as const) {

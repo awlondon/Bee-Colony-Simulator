@@ -284,6 +284,13 @@ function launch(b: Bee, w: WorldState, p: FlowerPatch): void {
 }
 
 export function stepBee(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx, cmd: BeeCommand): void {
+  stepBeeInner(b, w, rng, dt, ctx, cmd);
+  // Many code paths spend energy (flying, hovering, fighting, poison); none may take it out of range.
+  if (b.energy < 0) b.energy = 0;
+  else if (b.energy > 1) b.energy = 1;
+}
+
+function stepBeeInner(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx, cmd: BeeCommand): void {
   copy(b.prevPos, b.pos);
   b.stateTime += dt;
   b.ageDays += (ctx.gmin * 60) / 86400;

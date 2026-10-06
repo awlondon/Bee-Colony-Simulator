@@ -1,4 +1,5 @@
 import { applyAction } from './actions';
+import { makeBeekeeper, requestHiveVisit, stepBeekeeper } from './beekeeper';
 import { beeVisible, createBees, emptyCommand, resumeFromState, stepBee, type BeeCtx } from './bee';
 import { deriveClock, makeClock, stepClock } from './clock';
 import { deriveBrood, deriveRoles, makeColony, stepColony, totalBrood } from './colony';
@@ -21,6 +22,8 @@ export interface CreateOptions {
   strain?: StrainId;
   /** Unlocks earned in earlier games (the profile). */
   unlocked?: readonly string[];
+  /** Set false to run without the caretaker (controlled experiments). Default true. */
+  beekeeper?: boolean;
 }
 
 export class SimWorld {
@@ -45,6 +48,7 @@ export class SimWorld {
       nextId: 1,
       threatHour: -1,
       mods: { ...scenario.mods, tempBySeason: { ...scenario.mods.tempBySeason } },
+      beekeeper: makeBeekeeper(hivePos, clock.totalMinutes),
       clock,
       weather: makeWeather(),
       colony: makeColony(hivePos, rng),
@@ -55,10 +59,11 @@ export class SimWorld {
       unlocks: { unlocked: [...new Set([...DEFAULT_UNLOCKED, ...(opts.unlocked ?? [])])], strain: strainId, scenario: scenario.id },
       history: [],
       possessedBeeId: null,
-      stats: { nectarCollected: 0, dancesPerformed: 0, waspsRepelled: 0, patchesPlanted: 0, daysSurvived: 0, recruits: 0, honeyHarvested: 0 },
+      stats: { nectarCollected: 0, dancesPerformed: 0, waspsRepelled: 0, patchesPlanted: 0, daysSurvived: 0, recruits: 0, honeyHarvested: 0, stingsTaken: 0, hiveTends: 0, patchVisits: 0 },
       flags: {},
       events: [],
     };
+    if (opts.beekeeper === false) state.flags.noBeekeeper = true;
     state.colony.queen.layRate = QUEEN_LAY_RATE * STRAINS[strainId].layRate;
     state.colony.stores.honey = scenario.honey;
     const world = new SimWorld(state, rng);
@@ -100,7 +105,10 @@ export class SimWorld {
   }
 
   applyAction(a: BeekeeperAction): ActionResult {
-    return applyAction(this.state, this.rng, a, this.push);
+    const r = applyAction(this.state, this.rng, a, this.push);
+    // Work done at the hive brings the caretaker round to have a look.
+    if (r.ok && ['inspect', 'addSuper', 'feedSyrup', 'treatMites', 'harvestHoney'].includes(a.type)) requestHiveVisit(this.state);
+    return r;
   }
 
   setBeeCommand(cmd: BeeCommand): void {
@@ -179,6 +187,7 @@ export class SimWorld {
     if (stepWeather(s, this.rng, gdt)) this.push({ kind: 'rainStarted', t: s.clock.totalMinutes });
     stepPatches(s, gdt);
     stepThreats(s, this.rng, gdt, this.push);
+    stepBeekeeper(s, this.rng, dt, gdt, this.push);
 
     const ctx: BeeCtx = {
       scale: Math.max(1, s.colony.roles.foragers + s.colony.roles.nurses + s.colony.roles.guards) / s.bees.length,

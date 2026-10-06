@@ -14,6 +14,7 @@ function noon(seed: number): SimWorld {
   s.weather.wind = 0.1;
   s.weather.plan.rainIntensity = 0;
   s.threatHour = Math.floor(s.clock.totalMinutes / 60); // no random spawns during the test
+  s.flags.noBeekeeper = true; // the caretaker would help swat wasps; these tests isolate the colony's own defence
   return w;
 }
 

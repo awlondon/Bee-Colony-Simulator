@@ -1,4 +1,7 @@
 import {
+  ALERT_ATTACK_THRESHOLD,
+  ALERT_DECAY_PER_MIN,
+  ALERT_DECAY_SMOKED_PER_MIN,
   BROOD_DAYS,
   EGG_DAYS,
   ENTRANCE_CLOSE_LIMIT_MINUTES,
@@ -38,6 +41,8 @@ export function makeColony(hivePos: Vec3, rng: Rng): Colony {
     collapsed: false,
     entranceClosed: false,
     entranceClosedSince: 0,
+    alert: 0,
+    smokedUntil: -1,
   };
   deriveBrood(c);
   deriveRoles(c, 0);
@@ -225,6 +230,12 @@ export function stepColony(w: WorldState, rng: Rng, gdt: number, push: (e: SimEv
     }
   }
 
+  // Guards calm down with time, and much faster under smoke.
+  c.alert = Math.max(
+    0,
+    c.alert - (w.clock.totalMinutes < c.smokedUntil ? ALERT_DECAY_SMOKED_PER_MIN : ALERT_DECAY_PER_MIN) * (gdt / 60),
+  );
+
   // Mites and health.
   c.miteLoad = Math.min(1, c.miteLoad + 0.003 * strain.miteGrowth * days * (1 + totalBrood(c) / 8000));
   let dHealth = 0.05 * days; // recovery
@@ -241,9 +252,9 @@ export function stepColony(w: WorldState, rng: Rng, gdt: number, push: (e: SimEv
   for (const t of w.threats) if (t.kind === 'wasp' && t.state !== 'dead') hasWasp = true;
   const recentlyInspected = w.clock.totalMinutes - c.lastInspectMinute < 20;
   let mood: Mood = 'calm';
-  if (hasWasp) mood = 'defensive';
-  else if (recentlyInspected || c.entranceClosed || c.health < 0.4 || c.starving) mood = 'agitated';
+  if (hasWasp || w.beekeeper.attackers > 0) mood = 'defensive';
+  else if (recentlyInspected || c.alert >= ALERT_ATTACK_THRESHOLD || c.entranceClosed || c.health < 0.4 || c.starving) mood = 'agitated';
   else if (c.roles.foragers > 0 && w.bees.some((b) => b.state === 'collecting' || b.state === 'forageOutbound')) mood = 'busy';
   c.mood = mood;
-  deriveRoles(c, mood === 'defensive' ? 1 : 0);
+  deriveRoles(c, mood === 'defensive' || c.alert > 0.5 ? 1 : 0);
 }

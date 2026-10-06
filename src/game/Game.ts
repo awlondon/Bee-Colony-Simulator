@@ -4,15 +4,17 @@ import { Input } from '../input/Input';
 import { Renderer } from '../render/Renderer';
 import { MAX_AGENTS, SIM_DT } from '../sim/constants';
 import { plantProblem } from '../sim/actions';
-import type { BeekeeperAction, SpeciesId } from '../sim/types';
+import type { BeekeeperAction, ScenarioId, SpeciesId, StrainId } from '../sim/types';
 import { SimWorld } from '../sim/World';
 import { toastFor } from '../ui/events';
 import { FactEngine, type FactStorage } from '../ui/facts';
 import { Tutorial } from '../ui/Tutorial';
 import { Hud } from '../ui/Hud';
+import { Menu } from '../ui/Menu';
+import { Profile, SaveStore } from './Persistence';
 import { BeeController } from './BeeController';
 import { HumanController } from './HumanController';
-import { GameMode, ModeManager } from './ModeManager';
+import { GameMode, ModeManager, NO_INPUT } from './ModeManager';
 
 function safeStorage(): FactStorage | null {
   try {
@@ -22,6 +24,7 @@ function safeStorage(): FactStorage | null {
   }
 }
 
+const AUTOSAVE_SECONDS = 120;
 const MAX_TICKS_PER_FRAME = 64;
 const FRAME_BUDGET_MS = 9;
 export const SPEEDS = [0, 1, 2, 4, 8, 16] as const;
@@ -37,6 +40,10 @@ export class Game {
   readonly audio: AudioEngine;
   readonly facts: FactEngine;
   readonly tutorial: Tutorial;
+  readonly profile: Profile;
+  readonly saves: SaveStore;
+  readonly menu: Menu;
+  resumed = false;
   speed = 1;
   private acc = 0;
   private last = 0;
@@ -48,7 +55,15 @@ export class Game {
     hudRoot: HTMLElement,
     seed = 20260519,
   ) {
-    this.world = SimWorld.create({ seed, agentCount: MAX_AGENTS });
+    const storage = safeStorage();
+    this.profile = new Profile(storage);
+    this.saves = new SaveStore(storage);
+    const saved = this.saves.load();
+    if (saved) {
+      saved.release(); // never resume in the middle of a flight
+      this.resumed = true;
+    } else this.profile.recordGameStarted();
+    this.world = saved ?? SimWorld.create({ seed, agentCount: MAX_AGENTS, unlocked: this.profile.data.unlocked });
     this.renderer = new Renderer(canvas);
     this.input = new Input(canvas);
     this.human = new HumanController(this.world, this.renderer.rig, () => ({ w: canvas.clientWidth, h: canvas.clientHeight }));
@@ -57,7 +72,6 @@ export class Game {
       { world: this.world, rig: this.renderer.rig, input: this.input },
       { [GameMode.Human]: this.human, [GameMode.Bee]: this.bee },
     );
-    const storage = safeStorage();
     this.audio = new AudioEngine(storage);
     this.tutorial = new Tutorial(storage);
     this.facts = new FactEngine((t) => this.hud.toast(t), storage);
@@ -74,6 +88,15 @@ export class Game {
       onTutorialRestart: () => this.tutorial.restart(),
       onToggleMute: () => this.audio.toggleMute(),
       onUiClick: () => this.audio.click(),
+      onMenu: () => this.toggleMenu(),
+    });
+    this.menu = new Menu(hudRoot, {
+      onNew: (scenario, strain) => this.newGame(scenario, strain),
+      onClose: () => this.menu.close(),
+    });
+    window.addEventListener('pagehide', () => this.saveNow());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.saveNow();
     });
     this.audio.onMuteChanged = (m) => this.hud.setMuted(m);
     this.hud.setMuted(this.audio.muted);
@@ -89,12 +112,58 @@ export class Game {
     this.hud.toast({ kind: r.ok ? 'good' : 'warn', text: r.message, ttl: r.ok ? 6 : 5 });
   }
 
+  private lastDay = -1;
+  private saveTimer = 0;
   private lidTimer = 0;
   private orbited = false;
   private prevNectar = 0;
   private prevCollected = 0;
   private collectFactSpecies = '';
   private lastPlanting: SpeciesId | null = null;
+
+  saveNow(): void {
+    this.saves.save(this.world);
+  }
+
+  openMenu(banner?: string): void {
+    this.saveNow();
+    const u = this.world.state.unlocks;
+    this.menu.open({
+      unlocked: this.profile.data.unlocked,
+      bestDays: this.profile.data.bestDays,
+      games: this.profile.data.games,
+      banner,
+      current: { scenario: u.scenario, strain: u.strain },
+    });
+  }
+
+  toggleMenu(): void {
+    if (this.menu.isOpen) this.menu.close();
+    else this.openMenu();
+  }
+
+  /** Replace the current colony with a fresh one. The world object is kept so everything holding it stays valid. */
+  newGame(scenario: ScenarioId, strain: StrainId): void {
+    const seed = (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0;
+    this.world.release();
+    this.world.replaceWith(
+      SimWorld.create({ seed, agentCount: MAX_AGENTS, scenario, strain, unlocked: this.profile.data.unlocked }),
+    );
+    this.modes.resetToHuman();
+    this.human.setPlanting(null);
+    this.human.select(null);
+    this.human.focusOn(3, 9, 27);
+    this.lastDay = -1;
+    this.prevCollected = 0;
+    this.prevNectar = 0;
+    this.acc = 0;
+    this.lidTimer = 0;
+    this.profile.recordGameStarted();
+    this.saves.clear();
+    this.saveNow();
+    this.menu.close();
+    this.hud.toast({ kind: 'info', title: 'New colony', text: `${strain[0].toUpperCase()}${strain.slice(1)} bees, ${scenario} scenario. Good luck!`, ttl: 5 });
+  }
 
   setSpeed(s: number): void {
     this.speed = s;
@@ -110,6 +179,7 @@ export class Game {
 
   /** Effective speed: flying a bee always runs in real time so controls stay controllable. */
   private effectiveSpeed(): number {
+    if (this.menu.isOpen) return 0;
     return this.modes.mode === GameMode.Bee ? Math.min(this.speed, 1) : this.speed;
   }
 
@@ -124,6 +194,9 @@ export class Game {
       if (input.justPressed(k)) this.setSpeed(SPEEDS[i + 1]);
     });
 
+    // Esc closes planting first; otherwise it opens or closes the menu.
+    if (input.justPressed('Escape') && this.human.planting === null) this.toggleMenu();
+
     this.acc += dt * this.effectiveSpeed();
     let ticks = 0;
     const t0 = performance.now();
@@ -137,7 +210,7 @@ export class Game {
     if (this.acc >= SIM_DT) this.acc = Math.min(this.acc, SIM_DT);
     const alpha = this.effectiveSpeed() === 0 ? 1 : this.acc / SIM_DT;
 
-    this.modes.update(dt, input, alpha);
+    this.modes.update(dt, this.menu.isOpen ? NO_INPUT : input, alpha);
     const events = this.world.drainEvents();
     for (const e of events) {
       if (e.kind === 'actionApplied' && e.data?.type === 'inspect') this.lidTimer = 4;
@@ -145,7 +218,10 @@ export class Game {
       if (t) this.hud.toast(t);
       this.facts.onEvent(e);
       this.audio.onEvent(e);
+      if (e.kind === 'unlock' && typeof e.data?.id === 'string') this.profile.unlock([e.data.id]);
+      if (e.kind === 'colonyCollapse') this.onCollapse();
     }
+    this.autosave(dt);
     this.updateTeaching(dt, events);
     this.lidTimer = Math.max(0, this.lidTimer - dt);
     this.renderer.hive.openLid(this.lidTimer > 0);
@@ -175,6 +251,25 @@ export class Game {
     this.frames++;
     if (this.frames === 2) document.body.dataset.ready = 'true';
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  private onCollapse(): void {
+    const days = this.world.state.stats.daysSurvived;
+    this.profile.recordDays(days);
+    this.saves.clear();
+    this.openMenu(`Your colony collapsed after ${days} days. Pick a scenario and bees and try again.`);
+  }
+
+  private autosave(dt: number): void {
+    const w = this.world.state;
+    this.saveTimer += dt;
+    if (this.lastDay < 0) this.lastDay = w.clock.day;
+    if (w.clock.day !== this.lastDay || this.saveTimer > AUTOSAVE_SECONDS) {
+      this.lastDay = w.clock.day;
+      this.saveTimer = 0;
+      this.profile.recordDays(w.stats.daysSurvived);
+      this.saveNow();
+    }
   }
 
   /** Feed facts and the tutorial from what the player is doing right now. */

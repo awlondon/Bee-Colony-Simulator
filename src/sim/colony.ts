@@ -12,6 +12,7 @@ import {
   SUPER_KG,
 } from './constants';
 import type { Rng } from './rng';
+import { hasUpgrade, strainOf } from './unlocks';
 import type { Colony, Mood, Season, SimEvent, Vec3, WorldState } from './types';
 
 export function makeColony(hivePos: Vec3, rng: Rng): Colony {
@@ -100,8 +101,8 @@ function lifespanDays(season: Season): number {
   }
 }
 
-export function coldConsumptionMultiplier(tempC: number): number {
-  return 1 + Math.max(0, 15 - tempC) * 0.04;
+export function coldConsumptionMultiplier(tempC: number, insulation = 1): number {
+  return 1 + Math.max(0, 15 - tempC) * 0.04 * insulation;
 }
 
 /** Advance the colony by gdt game seconds. Deposits arrive from bees; weather and threats act elsewhere. */
@@ -163,12 +164,13 @@ export function stepColony(w: WorldState, rng: Rng, gdt: number, push: (e: SimEv
   }
 
   // Adult consumption.
-  const seasonFactor = season === 'winter' ? 0.8 : 1;
+  const strain = strainOf(w);
+  const seasonFactor = season === 'winter' ? 0.8 * strain.winterConsumption : 1;
   const need =
     (c.adults.workers + c.adults.drones) *
     PER_BEE_HONEY_KG_DAY *
     seasonFactor *
-    coldConsumptionMultiplier(w.weather.tempC) *
+    coldConsumptionMultiplier(w.weather.tempC, hasUpgrade(w, 'insulated') ? 0.5 : 1) *
     days;
   let remaining = need;
   const fromHoney = Math.min(c.stores.honey, remaining);
@@ -224,7 +226,7 @@ export function stepColony(w: WorldState, rng: Rng, gdt: number, push: (e: SimEv
   }
 
   // Mites and health.
-  c.miteLoad = Math.min(1, c.miteLoad + 0.003 * days * (1 + totalBrood(c) / 8000));
+  c.miteLoad = Math.min(1, c.miteLoad + 0.003 * strain.miteGrowth * days * (1 + totalBrood(c) / 8000));
   let dHealth = 0.05 * days; // recovery
   dHealth -= c.miteLoad * 0.12 * days;
   if (c.temperature < 30) dHealth -= 0.08 * days;

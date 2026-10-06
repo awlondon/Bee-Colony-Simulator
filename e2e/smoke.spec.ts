@@ -18,6 +18,12 @@ test('meadow renders and Tab switches between Human and Bee mode', async ({ page
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${SHOTS}/human.png` });
 
+  // Instancing keeps the whole meadow, hundreds of bees included, to a handful of draw calls.
+  const calls = await page.evaluate(() => window.__game!.renderer.gl.info.render.calls);
+  console.log(`draw calls per frame: ${calls}`);
+  expect(calls).toBeGreaterThan(0);
+  expect(calls).toBeLessThan(80);
+
   const visible = await page.evaluate(() => window.__game!.stats.visibleBees);
   expect(visible).toBeGreaterThan(5);
   await expect(page.locator('#c-workers')).not.toHaveText('0');

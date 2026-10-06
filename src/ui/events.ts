@@ -28,6 +28,8 @@ export function toastFor(e: SimEvent, w: WorldState): ToastOptions | null {
       return { kind: 'info', text: 'The hive is full. Add a honey super or harvest some honey.' };
     case 'firstForage':
       return { kind: 'good', text: 'The first nectar of the day is in.' };
+    case 'unlock':
+      return { kind: 'good', title: `Unlocked: ${String(e.data?.title)}`, text: String(e.data?.blurb ?? ''), ttl: 9 };
     case 'actionApplied':
       return e.data?.auto ? { kind: 'info', text: 'The entrance reopened by itself.' } : null;
     default:

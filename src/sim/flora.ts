@@ -173,7 +173,7 @@ export function stepPatches(w: WorldState, gdt: number): void {
   for (const p of w.patches) {
     const sp = FLOWER_SPECIES[p.speciesId];
     p.bloom = bloomFactor(sp, doy % DAYS_PER_YEAR);
-    const yieldFactor = p.bloom * p.maturity * (1 - p.pesticide);
+    const yieldFactor = p.bloom * p.maturity * (1 - p.pesticide) * w.mods.nectarScale;
     if (p.planted && p.maturity < 1) p.maturity = Math.min(1, p.maturity + gdt / (2 * 86400));
     if (p.pesticide > 0) p.pesticide = Math.max(0, p.pesticide - gdt / (3 * 86400));
     p.nectar = Math.min(maxNectar(p), p.nectar + p.flowerCount * sp.nectarPerFlowerHour * yieldFactor * hours);

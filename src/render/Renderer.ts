@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { WorldState } from '../sim/types';
 import { BeeRenderer } from './BeeRenderer';
+import { windUniforms } from './BeeVision';
 import { CameraRig } from './CameraRig';
 import { FlowerRenderer } from './FlowerRenderer';
 import { HiveRenderer } from './HiveRenderer';
@@ -75,6 +76,8 @@ export class Renderer {
   /** Sync all sub-renderers with the sim and draw. Returns the number of visible bees. */
   render(world: WorldState, alpha: number, dt: number): number {
     this.clockTime += dt;
+    windUniforms.uTime.value = this.clockTime;
+    windUniforms.uWind.value = world.weather.wind;
     const cam = this.rig.camera.position;
     this.sky.update(world, cam);
     const cloud = world.weather.cloud;

@@ -1,5 +1,6 @@
 import type { Rng } from './rng';
 import { heightAt } from './terrain';
+import { hasUpgrade, strainOf } from './unlocks';
 import type { SimEvent, Threat, Vec3, WorldState } from './types';
 
 type Wasp = Extract<Threat, { kind: 'wasp' }>;
@@ -86,11 +87,12 @@ function rollSpawns(w: WorldState, rng: Rng, push: (e: SimEvent) => void): void 
   const h = w.clock.minuteOfDay / 60;
   const day = h >= 7 && h <= 19;
   const waspCount = w.threats.filter((t) => t.kind === 'wasp' && t.state !== 'dead').length;
-  if (day && waspCount < 2 && rng.next() < WASP_CHANCE[season] / 12) spawnWasp(w, rng, push);
-  const pesticideActive = w.threats.some((t) => t.kind === 'pesticide');
-  if (day && !pesticideActive && rng.next() < PESTICIDE_CHANCE[season] / 12) spawnPesticide(w, rng, push);
+  if (day && waspCount < 2 && rng.next() < (WASP_CHANCE[season] * w.mods.waspScale) / 12) spawnWasp(w, rng, push);
+  const pesticideActive = w.threats.filter((t) => t.kind === 'pesticide').length;
+  const pesticideCap = Math.max(1, Math.round(w.mods.pesticideScale / 2)); // farmland sprays overlap
+  if (day && pesticideActive < pesticideCap && rng.next() < (PESTICIDE_CHANCE[season] * w.mods.pesticideScale) / 12) spawnPesticide(w, rng, push);
   const snapActive = w.threats.some((t) => t.kind === 'coldSnap');
-  if (!snapActive && rng.next() < SNAP_CHANCE[season] / 24) spawnColdSnap(w, rng, push);
+  if (!snapActive && rng.next() < (SNAP_CHANCE[season] * w.mods.snapScale) / 24) spawnColdSnap(w, rng, push);
 }
 
 export function stepThreats(w: WorldState, rng: Rng, gdt: number, push: (e: SimEvent) => void): void {
@@ -121,7 +123,8 @@ export function stepThreats(w: WorldState, rng: Rng, gdt: number, push: (e: SimE
         seek(t, { x: entrance.x + Math.cos(a) * 1.4, y: entrance.y + 0.5 + Math.sin(a * 1.7) * 0.3, z: entrance.z + 1.4 + Math.sin(a) * 1.0 }, WASP_SPEED, dt);
         const guardedDoor = c.entranceClosed ? 0.12 : 1;
         c.adults.workers = Math.max(0, c.adults.workers - t.killsPerMinute * guardedDoor * gmin);
-        t.hp -= c.roles.guards * GUARD_DAMAGE * gmin;
+        const guardPower = strainOf(w).guardPower * (hasUpgrade(w, 'waspGuard') ? 1.5 : 1);
+        t.hp -= c.roles.guards * GUARD_DAMAGE * guardPower * gmin;
         if (t.hp <= 0) {
           t.state = 'flee';
           t.timer = 0;

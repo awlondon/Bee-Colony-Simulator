@@ -224,11 +224,21 @@ export interface HistorySample {
 export type StrainId = 'italian' | 'carniolan' | 'buckfast';
 export type ScenarioId = 'meadow' | 'drySummer' | 'pesticideFarm' | 'hardWinter';
 
+export interface ScenarioMods {
+  nectarScale: number; // multiplies nectar and pollen production
+  tempBySeason: Partial<Record<Season, number>>; // degrees added to the daily mean
+  rainScale: number;
+  waspScale: number;
+  pesticideScale: number;
+  snapScale: number;
+}
+
 export interface WorldState {
   seed: number;
   tick: number;
   nextId: number;
   threatHour: number; // last game hour threats were rolled for
+  mods: ScenarioMods;
   clock: Clock;
   weather: Weather;
   colony: Colony;
@@ -246,6 +256,7 @@ export interface WorldState {
     patchesPlanted: number;
     daysSurvived: number;
     recruits: number;
+    honeyHarvested: number;
   };
   flags: Record<string, boolean | number>;
   events: SimEvent[];

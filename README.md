@@ -54,19 +54,24 @@ Funds come from honey sales and a small daily pollination fee proportional to th
 ```
 src/sim      deterministic simulation (state is plain JSON-able data)
 src/render   Three.js scene: terrain, sky, flowers, bees, hive, rain, bee vision
-src/game     fixed-step loop, mode manager, Human and Bee controllers
+src/game     fixed-step loop, mode manager, Human and Bee controllers, save/profile storage
 src/input    keyboard / mouse / pointer lock
-src/ui       DOM HUD
-tests        vitest unit tests for the simulation
-e2e          Playwright smoke test
+src/ui       DOM HUD: panels, toasts, trends, minimap, menu, tutorial, facts
+src/audio    synthesised sound and the pure mapping from world state to sound
+tests        vitest unit tests for the simulation and the pure UI logic
+e2e          Playwright tests that drive the real page in headless Chromium
 ```
 
-Dependency direction is `sim <- render/ui/input <- game <- main`. The UI and renderer only read sim state; the only writes are bee commands and beekeeper actions.
+Dependency direction is `sim <- render/ui/audio/input <- game <- main`. The UI and renderer only read sim state; the only writes are bee commands and beekeeper actions.
 
-## Learning as you play
+## Testing
 
-A guided **tutorial** (bottom left, skippable, restartable with the `?` button) walks through orbiting, selecting the hive, inspecting, becoming a bee, collecting, depositing, dancing and coming back. About thirty **"Did you know?" facts** appear once each at the moment they matter: the first forage, a wasp raid, a pesticide drift, the first season change, the first time you visit a given flower, and so on. What you have already seen is remembered in the browser.
+```bash
+npm test           # 114 unit tests: sim, economy, threats, dance, save/load, facts, tutorial, audio mapping
+npm run build      # strict type-check and production bundle
+npm run test:e2e   # 6 browser tests: modes, flight, actions, planting, menu, resume, tutorial, audio
+```
 
-## Sound
+Beyond the example-based tests, a **fuzz test** plays random actions, flights and weather for several simulated years across all scenarios and checks invariants (no NaN, no negative stores, bees stay in the world, saves always reload). It has already caught one real bug. A **performance guard** keeps the simulation fast enough for 16x time-lapse, and the smoke test asserts the whole meadow draws in under 80 draw calls (it is about 30).
 
-All audio is synthesised with the Web Audio API, with no sound files. Your wingbeat rises in pitch as you fly faster and drops when you tire. In Human Mode the colony's murmur swells with population and fades as you pull away from the hive. Wind, rain and night crickets follow the simulated weather. Sound starts on your first click or key press (a browser rule) and the mute setting is remembered.
+The simulation was also balanced with long headless runs: an unattended colony survives a full 24-day year, while a weak or neglected one can starve, be robbed by wasps or poisoned by drift.

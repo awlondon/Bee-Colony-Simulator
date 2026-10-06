@@ -57,11 +57,27 @@ export class ModeManager {
     this.onModeChanged?.(next);
   }
 
+  /** Jump straight back to the beekeeper view, e.g. when a different game replaces the current one. */
+  resetToHuman(): void {
+    if (this.mode === GameMode.Bee) {
+      this.controllers[GameMode.Bee].exit();
+      this.mode = GameMode.Human;
+      this.target = GameMode.Human;
+      this.controllers[GameMode.Human].enter(GameMode.Bee);
+      this.onModeChanged?.(GameMode.Human);
+    }
+    this.transitioning = false;
+    document.body.dataset.mode = 'human';
+    setBeeVision(0);
+    this.ctx.rig.beginTransition(0.5);
+    this.transitioning = true;
+  }
+
   update(dt: number, input: Input, alpha: number): void {
     if (input.justPressed('Tab')) this.toggle();
     const c = this.controllers[this.mode];
     if (!this.transitioning) c.update(dt, input, alpha);
-    else c.update(dt, emptyInputProxy, alpha);
+    else c.update(dt, NO_INPUT, alpha);
     this.ctx.rig.apply(c.desiredPose(alpha), dt);
     if (this.transitioning) {
       const p = this.ctx.rig.progress;
@@ -76,7 +92,7 @@ export class ModeManager {
 }
 
 /** Controllers keep running during a transition (the camera still follows) but ignore input. */
-const emptyInputProxy = {
+export const NO_INPUT = {
   keys: new Set<string>(),
   mouseDX: 0,
   mouseDY: 0,

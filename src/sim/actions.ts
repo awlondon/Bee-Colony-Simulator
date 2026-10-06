@@ -149,7 +149,7 @@ export function applyAction(
       return done(
         a.policy === 'careful'
           ? 'The caretaker will suit up and use the smoker, and take their time.'
-          : 'The caretaker will work in a hurry: lighter protection, no smoke, twice as often. Expect stings.',
+          : 'The caretaker will work in a hurry: lighter protection, no smoke, more visits. Expect stings.',
         { policy: a.policy },
       );
     }

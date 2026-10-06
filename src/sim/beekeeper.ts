@@ -215,6 +215,11 @@ function startChore(w: WorldState, rng: Rng, chore: 'tendHive' | 'visitPatch' | 
   }
 }
 
+/** Rest between jobs: unhurried and long when careful, short when hurried. */
+function restBetweenJobs(w: WorldState, rng: Rng): number {
+  return w.beekeeper.policy === 'careful' ? 90 + rng.next() * 50 : 30 + rng.next() * 20;
+}
+
 function finishChore(w: WorldState, rng: Rng): void {
   const k = w.beekeeper;
   k.chore = null;
@@ -223,8 +228,7 @@ function finishChore(w: WorldState, rng: Rng): void {
   k.route = [];
   k.speed = 0;
   k.lidOpen = false;
-  const careful = k.policy === 'careful';
-  k.nextChoreAt = w.clock.totalMinutes + (careful ? 90 + rng.next() * 50 : 25 + rng.next() * 20);
+  k.nextChoreAt = w.clock.totalMinutes + restBetweenJobs(w, rng);
 }
 
 function goHome(w: WorldState, retreat: boolean): void {
@@ -306,7 +310,7 @@ export function stepBeekeeper(w: WorldState, rng: Rng, dt: number, gdt: number, 
     k.retreatCooldownUntil = now + 30;
     push({ kind: 'beekeeperRetreated', t: now, data: { stings: Math.round(k.recentStings) } });
     k.recentStings = 0; // out of the bees' reach now; the count starts again
-    k.nextChoreAt = now + 120;
+    k.nextChoreAt = now + 45;
     goHome(w, true);
   }
 
@@ -463,7 +467,8 @@ function arrive(w: WorldState, rng: Rng): void {
       k.step = 0;
       // Hands the suit back at home.
       if (k.suit !== 'none') k.suit = 'none';
-      k.nextChoreAt = Math.max(k.nextChoreAt, w.clock.totalMinutes + 30);
+      // Coming back from a patch visit or a wasp: the same rest as after any job. A retreat keeps its longer one.
+      k.nextChoreAt = Math.max(k.nextChoreAt, w.clock.totalMinutes + restBetweenJobs(w, rng));
       break;
     }
   }
@@ -483,8 +488,8 @@ function beginWork(w: WorldState): void {
 function tendPatch(w: WorldState): void {
   const p = w.patches.find((x) => x.id === w.beekeeper.patchId);
   if (!p) return;
-  p.nectar = Math.min(maxNectar(p), p.nectar + 0.3 * maxNectar(p));
-  p.pollen = Math.min(maxPollen(p), p.pollen + 0.3 * maxPollen(p));
+  p.nectar = Math.min(maxNectar(p), p.nectar + 0.6 * maxNectar(p));
+  p.pollen = Math.min(maxPollen(p), p.pollen + 0.6 * maxPollen(p));
   w.stats.patchVisits++;
 }
 

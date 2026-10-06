@@ -35,6 +35,8 @@ test('the beekeeper tends the hive, bees crowd round, and guards defend when it 
     const s = g.world.state;
     s.flags.noThreats = true;
     s.beekeeper.nextChoreAt = s.clock.totalMinutes;
+    // Asking for a hive visit makes the first job a tending visit, however many frames ran before the pause.
+    s.beekeeper.hiveVisitRequested = true;
   });
 
   // Smoking: step the sim until the beekeeper starts puffing smoke at the entrance.

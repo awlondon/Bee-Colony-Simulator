@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { WorldState } from '../sim/types';
 import { BeeRenderer } from './BeeRenderer';
+import { BeekeeperRenderer } from './BeekeeperRenderer';
 import { windUniforms } from './BeeVision';
 import { CameraRig } from './CameraRig';
 import { FlowerRenderer } from './FlowerRenderer';
@@ -18,6 +19,7 @@ export class Renderer {
   readonly flowers = new FlowerRenderer();
   readonly bees = new BeeRenderer();
   readonly hive = new HiveRenderer();
+  readonly keeper = new BeekeeperRenderer();
   readonly weatherFx = new WeatherFX();
   private fog = new THREE.Fog(0xbfd8f0, 80, 260);
   private ghost: THREE.Mesh;
@@ -43,7 +45,7 @@ export class Renderer {
     );
     this.beacon.visible = false;
     this.scene.add(this.beacon);
-    this.scene.add(this.terrain.group, this.flowers.group, this.bees.group, this.hive.group, this.weatherFx.lines);
+    this.scene.add(this.terrain.group, this.flowers.group, this.bees.group, this.hive.group, this.keeper.group, this.keeper.smoke.points, this.weatherFx.lines);
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -87,6 +89,8 @@ export class Renderer {
     this.flowers.sync(world);
     const visible = this.bees.sync(world, alpha, this.clockTime, cam);
     this.hive.sync(world, dt);
+    this.keeper.smoke.setView(this.canvas.height || 720, this.rig.camera.fov);
+    this.keeper.sync(world, alpha, dt, this.clockTime, cam);
     this.updateBeacon(world);
     this.weatherFx.update(world, cam, dt);
     this.gl.render(this.scene, this.rig.camera);

@@ -112,6 +112,17 @@ export class BeeController implements Controller {
         }
       }
     }
+    const k = s.beekeeper;
+    const closeToKeeper = Math.hypot(b.pos.x - k.pos.x, b.pos.z - k.pos.z) < 14 || nearHive;
+    if (closeToKeeper && s.flags.noBeekeeper !== true) {
+      // Trouble takes priority over everything else; calm goings-on only fill a quiet moment.
+      if (k.attackers > 0) p = 'The guards are stinging the beekeeper!';
+      else if (k.activity === 'working' && k.chore === 'tendHive' && s.colony.alert >= 0.35) p = 'The hive was opened without smoke. The guards are on alert!';
+      else if (p === '' || nearHive) {
+        if (k.activity === 'smoking') p = 'The beekeeper is puffing smoke into the entrance. The guards are calming down.';
+        else if (k.activity === 'working' && k.chore === 'tendHive' && !(b.load.nectar > 0.05)) p = 'The beekeeper is looking inside the hive.';
+      }
+    }
     this.prompt = p;
   }
 

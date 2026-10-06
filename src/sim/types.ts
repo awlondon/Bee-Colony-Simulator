@@ -81,6 +81,8 @@ export type BeeState =
   | 'guard'
   | 'rest'
   | 'fightWasp'
+  | 'investigate' // hovering around or perched on the beekeeper
+  | 'attackKeeper' // defending the hive against the beekeeper
   | 'dead';
 
 export interface DanceInfo {
@@ -151,6 +153,8 @@ export interface Colony {
   collapsed: boolean;
   entranceClosed: boolean;
   entranceClosedSince: number;
+  alert: number; // 0..1, how worked up the guards are
+  smokedUntil: number; // game minute until which smoke is masking alarm pheromone
 }
 
 export type Threat =
@@ -188,7 +192,11 @@ export type SimEventKind =
   | 'possess'
   | 'release'
   | 'actionApplied'
-  | 'hiveFull';
+  | 'hiveFull'
+  | 'smokerLit'
+  | 'beekeeperStung'
+  | 'beekeeperRetreated'
+  | 'hiveTended';
 
 export interface SimEvent {
   kind: SimEventKind;
@@ -205,7 +213,8 @@ export type BeekeeperAction =
   | { type: 'removeThreat'; threatId: number }
   | { type: 'harvestHoney'; kg: number }
   | { type: 'closeEntrance' }
-  | { type: 'openEntrance' };
+  | { type: 'openEntrance' }
+  | { type: 'setCaretakerPolicy'; policy: CaretakerPolicy };
 
 export interface ActionResult {
   ok: boolean;
@@ -224,6 +233,40 @@ export interface HistorySample {
 export type StrainId = 'italian' | 'carniolan' | 'buckfast';
 export type ScenarioId = 'meadow' | 'drySummer' | 'pesticideFarm' | 'hardWinter';
 
+export type KeeperActivity = 'idle' | 'walking' | 'dressing' | 'smoking' | 'working' | 'retreating';
+export type KeeperChore = 'tendHive' | 'visitPatch' | 'swatWasp' | 'goHome' | null;
+export type SuitLevel = 'none' | 'veil' | 'full';
+export type CaretakerPolicy = 'careful' | 'hurried';
+
+/** The autonomous caretaker who walks the apiary, tends the hive and deals with the bees' reaction. */
+export interface BeekeeperAgent {
+  pos: Vec3;
+  prevPos: Vec3;
+  yaw: number;
+  activity: KeeperActivity;
+  chore: KeeperChore;
+  step: number; // stage within the current chore
+  timer: number; // game minutes left in the current stage
+  counter: number; // small per-stage counter (smoke puffs left)
+  route: Vec3[]; // waypoints still to walk
+  speed: number; // current walking speed in m/s, for animation
+  suit: SuitLevel;
+  smokerFuel: number; // 0..1
+  puffCount: number; // increases with every puff, so the renderer can spawn smoke
+  discomfort: number; // 0..1
+  recentStings: number; // decays over time
+  policy: CaretakerPolicy;
+  patchId: number | null;
+  nextChoreAt: number; // game minute
+  retreatCooldownUntil: number; // game minute before which another retreat will not start
+  lastTendMinute: number;
+  hiveVisitRequested: boolean;
+  curiosity: number; // 0..1, how interesting the beekeeper is to bees right now
+  attackers: number; // bees currently attacking
+  curious: number; // bees currently investigating
+  lidOpen: boolean;
+}
+
 export interface ScenarioMods {
   nectarScale: number; // multiplies nectar and pollen production
   tempBySeason: Partial<Record<Season, number>>; // degrees added to the daily mean
@@ -239,6 +282,7 @@ export interface WorldState {
   nextId: number;
   threatHour: number; // last game hour threats were rolled for
   mods: ScenarioMods;
+  beekeeper: BeekeeperAgent;
   clock: Clock;
   weather: Weather;
   colony: Colony;
@@ -257,6 +301,9 @@ export interface WorldState {
     daysSurvived: number;
     recruits: number;
     honeyHarvested: number;
+    stingsTaken: number;
+    hiveTends: number;
+    patchVisits: number;
   };
   flags: Record<string, boolean | number>;
   events: SimEvent[];

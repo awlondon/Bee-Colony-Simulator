@@ -25,6 +25,7 @@ export class AudioEngine {
   private windGain: GainNode | null = null;
   private rainGain: GainNode | null = null;
   private cricketGain: GainNode | null = null;
+  private noiseBuf: AudioBuffer | null = null;
   muted: boolean;
   onMuteChanged: ((muted: boolean) => void) | null = null;
 
@@ -98,6 +99,7 @@ export class AudioEngine {
         s.start();
         return s;
       };
+      this.noiseBuf = noise;
       const windSrc = mkNoise();
       const windFilter = ctx.createBiquadFilter();
       windFilter.type = 'bandpass';
@@ -206,6 +208,28 @@ export class AudioEngine {
     o.stop(ctx.currentTime + start + dur + 0.05);
   }
 
+  /** A short breathy hiss: the smoker. */
+  hiss(): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.noiseBuf || ctx.state !== 'running') return;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1400;
+    f.Q.value = 0.7;
+    const g = ctx.createGain();
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    src.connect(f);
+    f.connect(g);
+    g.connect(this.master);
+    src.start(t);
+    src.stop(t + 0.55);
+  }
+
   click(): void {
     this.blip(820, 0, 0.05, 0.18);
   }
@@ -234,6 +258,15 @@ export class AudioEngine {
       case 'starvationWarning':
       case 'queenDied':
       case 'colonyCollapse':
+        this.alarm();
+        break;
+      case 'beekeeperStung':
+        this.blip(1200, 0, 0.06, 0.1, 'sawtooth');
+        break;
+      case 'smokerLit':
+        this.hiss();
+        break;
+      case 'beekeeperRetreated':
         this.alarm();
         break;
       case 'waspRepelled':

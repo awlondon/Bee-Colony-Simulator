@@ -42,6 +42,19 @@ Click the hive to get beekeeper actions: **Inspect** (opens the lid, reveals que
 The **Garden** panel plants new forage patches: pick a species, then click the meadow (the ring turns red where planting is not allowed). Threat alerts at the top offer one-click answers: set a wasp trap, or flush pesticide-contaminated blooms. **Trends** shows sparklines of the colony over the last four days and the **Forage map** shows patches, bees, wasps and where you are.
 Funds come from honey sales and a small daily pollination fee proportional to the nectar your bees bring in.
 
+## The beekeeper
+
+A caretaker lives in the apiary and goes about their own work. In fair daylight they suit up, light the **smoker**, puff smoke into the entrance, open the hive and look inside, and also wander out to weed and water flower patches. Click them to see what they are doing, their protection, smoker fuel and discomfort. Work you do at the hive (inspect, feed, treat, harvest, add a super) brings them round to have a look soon after.
+
+The bees react to them:
+- **Smoke calms the guards.** Opening the hive without it sets them off. Guards boil out, fly at the beekeeper and sting, and a stinging bee dies. Calm returns with smoke or with time.
+- **The suit matters.** With no protection every sting lands, a veil lets about a third through, a full suit about one in twelve. Earn the double-layer suit upgrade by letting them take 25 stings.
+- **Too many stings** and the beekeeper retreats until the bees settle.
+- **Curious bees** orbit a beekeeper who is working at the open hive, and some land on their shoulders, arms and hat.
+- **Wasps:** the beekeeper helps swat a raider at the entrance.
+
+The **Caretaker style** switch in the Colony panel sets how they work. *Careful* (default) suits up, smokes the bees and takes its time: no stings, steady tending. *Hurried* wears only a veil, skips the smoke and visits about one and a half times as often, which means more work done but dozens of stings a day and a smaller colony. In Bee Mode you see all of it from the bees' side.
+
 ## How the simulation works
 
 - `src/sim` is pure TypeScript with no Three.js, no `Math.random` and no `Date.now`. All randomness comes from a seeded RNG, so a given seed always plays out identically. `npm test` fails if a forbidden call sneaks in.
@@ -67,11 +80,11 @@ Dependency direction is `sim <- render/ui/audio/input <- game <- main`. The UI a
 ## Testing
 
 ```bash
-npm test           # 114 unit tests: sim, economy, threats, dance, save/load, facts, tutorial, audio mapping
+npm test           # about 140 unit tests: sim, economy, threats, dance, save/load, facts, tutorial, audio mapping
 npm run build      # strict type-check and production bundle
-npm run test:e2e   # 6 browser tests: modes, flight, actions, planting, menu, resume, tutorial, audio
+npm run test:e2e   # 7 browser tests: modes, flight, actions, planting, menu, resume, tutorial, audio
 ```
 
-Beyond the example-based tests, a **fuzz test** plays random actions, flights and weather for several simulated years across all scenarios and checks invariants (no NaN, no negative stores, bees stay in the world, saves always reload). It has already caught one real bug. A **performance guard** keeps the simulation fast enough for 16x time-lapse, and the smoke test asserts the whole meadow draws in under 80 draw calls (it is about 30).
+Beyond the example-based tests, a **fuzz test** plays random actions, flights and weather for several simulated years across all scenarios and checks invariants (no NaN, no negative stores, bees stay in the world, saves always reload). It has already caught one real bug. A **performance guard** keeps the simulation fast enough for 16x time-lapse, and the smoke test asserts the whole meadow draws in under 80 draw calls (it is about 45).
 
 The simulation was also balanced with long headless runs: an unattended colony survives a full 24-day year, while a weak or neglected one can starve, be robbed by wasps or poisoned by drift.

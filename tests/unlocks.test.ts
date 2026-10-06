@@ -33,7 +33,7 @@ describe('unlock progression', () => {
     for (const s of Object.keys(SCENARIOS)) expect(ids.includes(`scenario:${s}`) || DEFAULT_UNLOCKED.includes(`scenario:${s}`)).toBe(true);
     // Maxing every stat unlocks the lot.
     const w = SimWorld.create({ seed: 1, agentCount: 20 });
-    Object.assign(w.state.stats, { daysSurvived: 99, waspsRepelled: 9, patchesPlanted: 9, nectarCollected: 999, honeyHarvested: 99 });
+    Object.assign(w.state.stats, { daysSurvived: 99, waspsRepelled: 9, patchesPlanted: 9, nectarCollected: 999, honeyHarvested: 99, stingsTaken: 99 });
     checkUnlocks(w.state, () => undefined);
     expect(w.state.unlocks.unlocked.length).toBe(DEFAULT_UNLOCKED.length + UNLOCK_DEFS.length);
   });

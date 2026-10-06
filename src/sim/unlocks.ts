@@ -162,6 +162,14 @@ export const UNLOCK_DEFS: readonly UnlockDef[] = [
     condition: (w) => w.stats.nectarCollected >= 60,
   },
   {
+    id: 'upgrade:thickSuit',
+    kind: 'upgrade',
+    title: 'Double-layer suit',
+    blurb: 'Almost no stings get through the beekeeper\'s suit.',
+    hint: 'Let the beekeeper take 25 stings',
+    condition: (w) => w.stats.stingsTaken >= 25,
+  },
+  {
     id: 'upgrade:extraSuper',
     kind: 'upgrade',
     title: 'Fifth super',
@@ -175,7 +183,7 @@ export function hasUnlock(w: WorldState, id: string): boolean {
   return w.unlocks.unlocked.includes(id);
 }
 
-export function hasUpgrade(w: WorldState, name: 'waspGuard' | 'insulated' | 'extraSuper'): boolean {
+export function hasUpgrade(w: WorldState, name: 'waspGuard' | 'insulated' | 'extraSuper' | 'thickSuit'): boolean {
   return hasUnlock(w, `upgrade:${name}`);
 }
 

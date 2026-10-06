@@ -224,7 +224,8 @@ export class Game {
     this.autosave(dt);
     this.updateTeaching(dt, events);
     this.lidTimer = Math.max(0, this.lidTimer - dt);
-    this.renderer.hive.openLid(this.lidTimer > 0);
+    this.renderer.hive.openLid(this.lidTimer > 0 || this.world.state.beekeeper.lidOpen);
+    this.renderer.keeper.selected = this.human.selection?.kind === 'keeper' && this.modes.mode === GameMode.Human;
 
     const planting = this.modes.mode === GameMode.Human ? this.human.planting : null;
     if (planting !== this.lastPlanting) {

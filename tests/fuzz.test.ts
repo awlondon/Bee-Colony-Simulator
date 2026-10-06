@@ -39,12 +39,22 @@ function checkInvariants(w: SimWorld, label: string): void {
     bad(p.pesticide >= 0 && p.pesticide <= 1 + 1e-9, 'pesticide out of range');
     bad(p.maturity >= 0 && p.maturity <= 1 + 1e-9, 'maturity out of range');
   }
+  const k = s.beekeeper;
+  bad(Math.abs(k.pos.x) <= HALF_WORLD && Math.abs(k.pos.z) <= HALF_WORLD, 'beekeeper left the world');
+  bad(k.discomfort >= 0 && k.discomfort <= 1 + 1e-9, `beekeeper discomfort ${k.discomfort}`);
+  bad(k.smokerFuel >= 0 && k.smokerFuel <= 1 + 1e-9, `smoker fuel ${k.smokerFuel}`);
+  bad(k.recentStings >= 0, 'negative recent stings');
+  bad(c.alert >= 0 && c.alert <= 1 + 1e-9, `colony alert ${c.alert}`);
+  bad(s.stats.stingsTaken >= 0 && s.stats.hiveTends >= 0 && s.stats.patchVisits >= 0, 'negative caretaker stats');
+  bad(k.attackers <= s.bees.length && k.curious <= s.bees.length, 'more attackers or curious bees than bees');
+  bad(s.bees.filter((b) => b.state === 'attackKeeper').length <= 40, 'attacker count is out of hand');
+  bad(s.bees.filter((b) => b.state === 'investigate').length <= 40, 'curious count is out of hand');
   bad(s.bees.filter((b) => b.possessed).length <= 1, 'more than one possessed bee');
   bad((s.possessedBeeId === null) === (s.bees.every((b) => !b.possessed)), 'possession bookkeeping out of sync');
 }
 
 function randomAction(rng: Rng, w: SimWorld): BeekeeperAction {
-  const pick = rng.int(11);
+  const pick = rng.int(13);
   switch (pick) {
     case 0:
       return { type: 'inspect' };
@@ -64,6 +74,10 @@ function randomAction(rng: Rng, w: SimWorld): BeekeeperAction {
       return { type: 'closeEntrance' };
     case 8:
       return { type: 'openEntrance' };
+    case 9:
+      return { type: 'setCaretakerPolicy', policy: 'hurried' };
+    case 10:
+      return { type: 'setCaretakerPolicy', policy: 'careful' };
     default:
       return { type: 'inspect' };
   }

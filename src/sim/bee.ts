@@ -16,15 +16,18 @@ import {
   DANCE_THRESHOLD,
   LOAD_MAX,
   MAX_ALTITUDE,
+  MAX_CURIOUS,
   NECTAR_KG_PER_LOAD,
   POISON_HEALTH_PER_BEE,
   POISON_LETHALITY,
   POLLEN_CAPACITY,
+  STING_COLONY_COST,
   POLLEN_KG_PER_LOAD,
   WORLD_SIZE,
 } from './constants';
 import { honeyCapacity } from './colony';
 import { recruitFollowers, startDance } from './dance';
+import { guardsWantTheKeeper, isSmoked, keeperActive, keeperDistance, keeperFromEntrance, orbitPoint, perchPoint, resolveSting } from './beekeeper';
 import { activeWasps, playerAttack } from './threats';
 import { FLOWER_SPECIES, patchQuality } from './flora';
 import type { Rng } from './rng';
@@ -246,6 +249,22 @@ function recycle(b: Bee, w: WorldState): void {
   setState(b, 'nurse');
 }
 
+/** A bee that died (stung) is replaced by another of the same age and role, so the guard force does not drain away. */
+function replaceKeepingRole(b: Bee, w: WorldState): void {
+  b.load.nectar = 0;
+  b.load.pollen = 0;
+  b.memory = null;
+  b.dance = null;
+  b.followOf = null;
+  b.poisoned = false;
+  b.targetPatchId = null;
+  b.target = null;
+  b.energy = 1;
+  copy(b.pos, w.colony.entrancePos);
+  b.vel.x = b.vel.y = b.vel.z = 0;
+  assignRole(b); // a replacement guard takes up the post at once
+}
+
 function parkInHive(b: Bee, w: WorldState, dt: number): void {
   copy(b.pos, w.colony.entrancePos);
   b.vel.x = b.vel.y = b.vel.z = 0;
@@ -283,6 +302,26 @@ function launch(b: Bee, w: WorldState, p: FlowerPatch): void {
   setState(b, 'forageOutbound');
 }
 
+/** Bees pass by, or come out of the hive, to have a look at a beekeeper who is up to something interesting. */
+function maybeInvestigate(b: Bee, w: WorldState, rng: Rng, hidden: boolean): boolean {
+  const k = w.beekeeper;
+  if (!keeperActive(w) || k.curiosity < 0.15 || k.curious >= MAX_CURIOUS) return false;
+  if (w.colony.alert >= 0.3 && !isSmoked(w)) return false;
+  if (b.load.nectar > 0.3 || b.poisoned) return false;
+  if (hidden) {
+    const e = w.colony.entrancePos;
+    if (!k.lidOpen || Math.hypot(e.x - k.pos.x, e.z - k.pos.z) > 8) return false;
+    if (rng.next() > 0.012 * k.curiosity) return false;
+    copy(b.pos, e);
+  } else {
+    if (keeperDistance(w, b.pos) > 5) return false;
+    if (rng.next() > 0.01 * k.curiosity) return false;
+  }
+  k.curious++;
+  setState(b, 'investigate');
+  return true;
+}
+
 export function stepBee(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx, cmd: BeeCommand): void {
   stepBeeInner(b, w, rng, dt, ctx, cmd);
   // Many code paths spend energy (flying, hovering, fighting, poison); none may take it out of range.
@@ -306,6 +345,13 @@ function stepBeeInner(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx, 
       parkInHive(b, w, dt);
       if (b.ageDays >= 40) return recycle(b, w);
       if (roleOf(b) !== 'forager') return assignRole(b);
+      if (w.colony.alert >= 0.6 && rng.next() < 0.02 && guardsWantTheKeeper(w)) {
+        copy(b.pos, entrance);
+        w.beekeeper.attackers++;
+        setState(b, 'attackKeeper');
+        return;
+      }
+      if (maybeInvestigate(b, w, rng, true)) return;
       if (ctx.forageOk && b.energy > 0.6 && b.stateTime > 0.8 && rng.next() < 0.03) {
         const p = chooseTarget(b, w, rng, ctx);
         if (p) launch(b, w, p);
@@ -350,6 +396,12 @@ function stepBeeInner(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx, 
         setState(b, 'fightWasp');
         return;
       }
+      if (guardsWantTheKeeper(w)) {
+        w.beekeeper.attackers++;
+        setState(b, 'attackKeeper');
+        return;
+      }
+      if (maybeInvestigate(b, w, rng, false)) return;
       const ang = w.tick * 0.025 + b.id * 0.9;
       const tgt = { x: entrance.x + Math.cos(ang) * 1.3, y: entrance.y + 0.15 + Math.sin(ang * 2) * 0.2, z: entrance.z + 0.4 + Math.sin(ang) * 0.9 };
       steer(b, tgt, dt, 2.2, w.tick);
@@ -360,6 +412,7 @@ function stepBeeInner(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx, 
       return;
     }
     case 'forageOutbound': {
+      if (maybeInvestigate(b, w, rng, false)) return;
       const p = findPatch(w, b.targetPatchId);
       if (!ctx.forageOk || b.energy < 0.2) return beginReturn(b, w);
       if (!usable(p, 0)) {
@@ -400,15 +453,17 @@ function stepBeeInner(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx, 
       return;
     }
     case 'forageReturn': {
+      if (maybeInvestigate(b, w, rng, false)) return;
       const tgt = b.target ?? entrance;
       const d = steer(b, tgt, dt, BEE_CRUISE_SPEED, w.tick);
       b.energy -= 0.0005 * Math.hypot(b.vel.x, b.vel.y, b.vel.z) * dt;
       if (d < 1.0) {
+        const hadLoad = b.load.nectar > 0.05;
         deposit(b, w, ctx);
         b.vel.x = b.vel.y = b.vel.z = 0;
         copy(b.pos, entrance);
         const patch = findPatch(w, b.memory?.patchId ?? null);
-        if (patch && b.memory && b.memory.quality >= DANCE_THRESHOLD && rng.next() < 0.6) {
+        if (hadLoad && patch && b.memory && b.memory.quality >= DANCE_THRESHOLD && rng.next() < 0.6) {
           startDance(b, w, patch, DANCE_MINUTES);
           const last = w.flags.lastDanceEvent;
           if (typeof last !== 'number' || w.clock.totalMinutes - last > 20) {
@@ -417,6 +472,52 @@ function stepBeeInner(b: Bee, w: WorldState, rng: Rng, dt: number, ctx: BeeCtx, 
           }
         } else if (b.energy < 0.35) setState(b, 'rest');
         else setState(b, 'idleInHive');
+      }
+      return;
+    }
+    case 'attackKeeper': {
+      const k = w.beekeeper;
+      if (!keeperActive(w) || isSmoked(w) || w.colony.alert < 0.15 || keeperFromEntrance(w) > 12 || keeperDistance(w, b.pos) > 22) {
+        setState(b, 'guard');
+        return;
+      }
+      const head = { x: k.pos.x, y: k.pos.y + 1.5, z: k.pos.z };
+      const d = steer(b, head, dt, BEE_CRUISE_SPEED + 2.5, w.tick);
+      b.energy = Math.max(0.3, b.energy - 0.001 * dt);
+      if (d < 0.6) {
+        // A stinging bee dies whether or not the sting gets through the suit.
+        w.colony.adults.workers = Math.max(0, w.colony.adults.workers - STING_COLONY_COST);
+        resolveSting(w, rng, ctx.push);
+        replaceKeepingRole(b, w);
+      }
+      return;
+    }
+    case 'investigate': {
+      const k = w.beekeeper;
+      const orbitFor = 2 + (b.id % 6);
+      const stayFor = orbitFor + 5 + (b.id % 8);
+      const leave =
+        !keeperActive(w) ||
+        k.activity === 'retreating' ||
+        (w.colony.alert >= 0.45 && !isSmoked(w)) ||
+        b.stateTime > stayFor ||
+        keeperDistance(w, b.pos) > 12;
+      if (leave) {
+        b.target = { ...entrance };
+        setState(b, 'forageReturn');
+        return;
+      }
+      if (b.stateTime < orbitFor) steer(b, orbitPoint(w, b.id, w.tick), dt, 3.4, w.tick);
+      else {
+        const p = perchPoint(w, b.id);
+        if (Math.hypot(p.x - b.pos.x, p.y - b.pos.y, p.z - b.pos.z) > 0.4) steer(b, p, dt, 3.4, w.tick);
+        else {
+          // Sitting on the beekeeper: rides along as they walk.
+          copy(b.pos, p);
+          b.vel.x = b.vel.y = b.vel.z = 0;
+          b.yaw = k.yaw + ((b.id % 7) - 3) * 0.4;
+          b.pitch = 0.1;
+        }
       }
       return;
     }

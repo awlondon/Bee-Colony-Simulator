@@ -1,5 +1,5 @@
 import './hud.css';
-import { alertActionHtml, gardenHtml, parseAction, selectionActionsHtml } from './ActionPanel';
+import { alertActionHtml, gardenHtml, parseAction, policyButtonHtml, selectionActionsHtml } from './ActionPanel';
 import { analyticsHtml } from './AnalyticsPanel';
 import { Minimap } from './Minimap';
 import { Toasts, type ToastOptions } from './Toasts';
@@ -50,6 +50,9 @@ const TEMPLATE = /* html */ `
   <div class="row"><span>Health</span><b id="c-health">100%</b></div>
   <div class="bar energy"><i id="c-health-bar"></i></div>
   <div class="row"><span>Mood</span><b id="c-mood" class="mood calm">calm</b></div>
+  <div class="row"><span>Beekeeper</span><b id="c-keeper">idle</b></div>
+  <div class="row"><span>Caretaker style</span><span id="c-policy"></span></div>
+  <div class="row"><span>Stings taken</span><b id="c-stings">0</b></div>
 </div>
 <div class="panel" id="p-analytics"><h3>Trends</h3><div id="a-body"></div></div>
 </div>
@@ -103,6 +106,25 @@ export interface HudCallbacks {
 export interface HudExtra {
   view: { x: number; z: number } | null;
   yaw: number | null;
+}
+
+function keeperStatus(w: WorldState): string {
+  const k = w.beekeeper;
+  if (w.flags.noBeekeeper === true) return 'away';
+  switch (k.activity) {
+    case 'idle':
+      return 'resting';
+    case 'dressing':
+      return k.chore === 'tendHive' && k.step === 6 ? 'changing' : 'suiting up';
+    case 'smoking':
+      return 'smoking the hive';
+    case 'retreating':
+      return 'retreating';
+    case 'working':
+      return k.chore === 'tendHive' ? 'tending the hive' : k.chore === 'swatWasp' ? 'swatting a wasp' : 'checking flowers';
+    default:
+      return k.chore === 'swatWasp' ? 'rushing to the hive' : 'walking';
+  }
 }
 
 const fmt = (n: number, d = 0): string => n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
@@ -248,6 +270,9 @@ export class Hud {
     this.set('c-temp', `${fmt(col.temperature, 1)} °C`);
     this.set('c-health', pct(col.health));
     this.bar('c-health-bar', col.health);
+    this.set('c-keeper', keeperStatus(w));
+    this.set('c-stings', `${w.stats.stingsTaken}`);
+    this.setHtml('c-policy', policyButtonHtml(w));
     const mood = this.get('c-mood');
     this.set('c-mood', col.mood);
     mood.className = `mood ${col.mood}`;
@@ -289,6 +314,10 @@ export class Hud {
       const tip = mode === GameMode.Bee ? ' — fly close and hold R to sting it' : '';
       const trap = mode === GameMode.Human ? ' ' + alertActionHtml('Set trap', { type: 'removeThreat', threatId: waspId }, 8) : '';
       alerts.push({ cls: 'bad', text: `⚠ Wasp raid at the entrance${tip}${trap}` });
+    }
+    if (w.beekeeper.attackers > 0 && w.flags.noBeekeeper !== true) {
+      const careful = w.beekeeper.policy === 'careful' ? '' : ' ' + alertActionHtml('Make careful', { type: 'setCaretakerPolicy', policy: 'careful' }, 0);
+      alerts.push({ cls: 'bad', text: `⚠ Guards are stinging the beekeeper${mode === GameMode.Human ? careful : ''}` });
     }
     if (patches > 0) {
       const flush = mode === GameMode.Human ? ' ' + alertActionHtml('Flush', { type: 'removeThreat', threatId: pestId }, 20) : '';
@@ -333,6 +362,15 @@ export class Hud {
           <div class="row"><span>Nectar load</span><b>${pct(b.load.nectar)}</b></div>`;
         btn.style.display = '';
       }
+    } else if (s?.kind === 'keeper') {
+      const k = w.beekeeper;
+      html = `<div class="row"><b>The beekeeper</b></div>
+        <div class="row"><span>Doing</span><b>${keeperStatus(w)}</b></div>
+        <div class="row"><span>Protection</span><b>${k.suit === 'full' ? 'full suit and veil' : k.suit === 'veil' ? 'veil only' : 'none'}</b></div>
+        <div class="row"><span>Smoker fuel</span><b>${pct(k.smokerFuel)}</b></div>
+        <div class="row"><span>Discomfort</span><b>${pct(k.discomfort)}</b></div>
+        <div class="row"><span>Tends / visits</span><b>${w.stats.hiveTends} / ${w.stats.patchVisits}</b></div>
+        <div class="row"><span>Curious bees</span><b>${k.curious}</b></div>`;
     } else if (s?.kind === 'threat') {
       const t = w.threats.find((x) => x.id === s.id);
       html =

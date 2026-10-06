@@ -28,6 +28,10 @@ export function toastFor(e: SimEvent, w: WorldState): ToastOptions | null {
       return { kind: 'info', text: 'The hive is full. Add a honey super or harvest some honey.' };
     case 'firstForage':
       return { kind: 'good', text: 'The first nectar of the day is in.' };
+    case 'beekeeperStung':
+      return { kind: 'warn', title: 'Beekeeper stung', text: `Guards are stinging the beekeeper. ${String(e.data?.total)} ${Number(e.data?.total) === 1 ? 'sting' : 'stings'} so far.` };
+    case 'beekeeperRetreated':
+      return { kind: 'warn', title: 'Beekeeper retreating', text: 'Too many stings. The beekeeper is backing off until the bees calm down.' };
     case 'unlock':
       return { kind: 'good', title: `Unlocked: ${String(e.data?.title)}`, text: String(e.data?.blurb ?? ''), ttl: 9 };
     case 'actionApplied':

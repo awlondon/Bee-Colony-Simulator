@@ -9,6 +9,7 @@ import {
 import { honeyCapacity } from './colony';
 import { createPatch } from './flora';
 import type { Rng } from './rng';
+import { setCaretakerPolicy } from './beekeeper';
 import { hasUpgrade } from './unlocks';
 import type { ActionResult, BeekeeperAction, SimEvent, WorldState } from './types';
 
@@ -49,6 +50,7 @@ export function applyAction(
       if (now - last < INSPECT_COOLDOWN_MINUTES) return fail('You just inspected the hive. Let the bees settle first.');
       w.flags.lastInspect = now;
       c.lastInspectMinute = now;
+      c.alert = Math.min(1, c.alert + (now < c.smokedUntil ? 0.04 : 0.25));
       const brood = c.brood.eggs + c.brood.larvae + c.brood.pupae;
       const queen = c.queen.alive ? 'queen laying' : 'no queen!';
       return done(
@@ -140,6 +142,16 @@ export function applyAction(
       c.entranceClosed = true;
       c.entranceClosedSince = now;
       return done('Entrance closed. Bees stay in and wasps are kept out, but the colony gets stressed. It reopens after 18 hours.');
+    }
+    case 'setCaretakerPolicy': {
+      if (w.beekeeper.policy === a.policy) return fail(`The caretaker is already working ${a.policy === 'careful' ? 'carefully' : 'in a hurry'}.`);
+      setCaretakerPolicy(w, a.policy);
+      return done(
+        a.policy === 'careful'
+          ? 'The caretaker will suit up and use the smoker, and take their time.'
+          : 'The caretaker will work in a hurry: lighter protection, no smoke, more visits. Expect stings.',
+        { policy: a.policy },
+      );
     }
     case 'openEntrance': {
       if (!c.entranceClosed) return fail('The entrance is already open.');

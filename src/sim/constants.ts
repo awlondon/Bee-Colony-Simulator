@@ -65,3 +65,27 @@ export const COST = { super: 40, syrupPerKg: 6, mites: 25, plant: 15, trap: 8, f
 export const HONEY_PRICE_PER_KG = 9;
 export const HONEY_RESERVE_KG = 7; // never harvest below this
 export const POLLINATION_INCOME_PER_KG = 3;
+
+// Beekeeper and the bees' reaction to them
+export const KEEPER_WALK_SPEED = 1.7;
+export const KEEPER_RUN_SPEED = 3.2;
+export const SMOKE_MINUTES = 25;
+export const SMOKER_FUEL_PER_PUFF = 0.12;
+export const ALERT_ATTACK_THRESHOLD = 0.35;
+export const ALERT_DECAY_PER_MIN = 0.02;
+export const ALERT_DECAY_SMOKED_PER_MIN = 0.12;
+export const ALERT_RISE_UNSMOKED_PER_MIN = 0.08;
+export const ALERT_LID_OPEN_IMPULSE = 0.18;
+export const MAX_ATTACKERS = 12;
+export const MAX_CURIOUS = 14;
+export const STING_COLONY_COST = 1; // workers lost per stinging bee
+export const SUIT_LEAK = { none: 1, veil: 0.35, full: 0.08 } as const; // share of stings that get through
+export const THICK_SUIT_LEAK = 0.03;
+export const STING_DISCOMFORT = 0.06;
+export const STING_ALERT = 0.02;
+export const RETREAT_DISCOMFORT = 0.7;
+export const RETREAT_STINGS = 10;
+export const KEEPER_SWAT_HP_PER_MIN = 2;
+export const TEND_COOLDOWN_MINUTES = { careful: 90, hurried: 30 } as const;
+export const TEND_HEALTH_BONUS = 0.012;
+export const TEND_MITE_FACTOR = 0.97;

@@ -47,6 +47,8 @@ export function audioParams(
     buzzFreq = 185 * defensive;
     buzzGain = Math.min(0.12, 0.06 * crowd * falloff * (w.colony.collapsed ? 0 : 1) * (isDaylight(w.clock) ? 1 : 0.5));
     buzzCutoff = 650;
+    // A swarm of angry guards is louder.
+    buzzGain *= 1 + Math.min(12, w.beekeeper.attackers) * 0.05;
   }
 
   const closeToGround = mode === 'bee' ? 1.3 : 1;

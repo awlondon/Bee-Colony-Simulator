@@ -10,7 +10,18 @@ function btn(label: string, action: BeekeeperAction, cost: number, money: number
 }
 
 /** Contextual buttons for the current selection. */
+export function policyButtonHtml(w: WorldState): string {
+  const careful = w.beekeeper.policy === 'careful';
+  const next = careful ? 'hurried' : 'careful';
+  return `<button class="btn small" title="${
+    careful
+      ? 'Careful: suits up, smokes the bees, takes their time. Click to hurry them up (risky).'
+      : 'Hurried: lighter suit, no smoke, more visits. Expect stings. Click to make them careful.'
+  }" data-act='${JSON.stringify({ type: 'setCaretakerPolicy', policy: next })}'>${careful ? 'Careful' : 'Hurried'} ⇄</button>`;
+}
+
 export function selectionActionsHtml(sel: Selection, w: WorldState): string {
+  if (sel?.kind === 'keeper') return policyButtonHtml(w);
   if (sel?.kind !== 'hive') return '';
   const m = w.keeper.money;
   const c = w.colony;
@@ -55,7 +66,8 @@ export function gardenHtml(w: WorldState, planting: SpeciesId | null): string {
 
 /** Actionable alert buttons (trap a wasp, flush pesticide). */
 export function alertActionHtml(label: string, action: BeekeeperAction, cost: number): string {
-  return `<button class="btn small" data-act='${JSON.stringify(action)}'>${label} <small>${cost}</small></button>`;
+  const price = cost > 0 ? ` <small>${cost}</small>` : '';
+  return `<button class="btn small" data-act='${JSON.stringify(action)}'>${label}${price}</button>`;
 }
 
 export function parseAction(el: HTMLElement): BeekeeperAction | null {

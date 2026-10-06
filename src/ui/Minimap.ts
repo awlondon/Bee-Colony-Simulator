@@ -72,6 +72,15 @@ export class Minimap {
       g.fill();
     }
 
+    const k = w.beekeeper;
+    g.fillStyle = '#7fd0ff';
+    g.strokeStyle = '#0b2a40';
+    g.lineWidth = 1.2;
+    g.beginPath();
+    g.arc(this.map(k.pos.x), this.map(k.pos.z), 3.4, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+
     if (view) {
       g.strokeStyle = 'rgba(255,255,255,0.9)';
       g.lineWidth = 1.2;

@@ -135,7 +135,7 @@ canvas#game.planting { cursor: crosshair; }
 .ups li { padding: 3px 0; color: #cdbf95; } .ups li.got { color: #fff; } .ups li b { color: inherit; }
 
 /* Smaller windows: let the top bar wrap and drop the least essential panels. */
-.topbar { max-width: 98vw; flex-wrap: wrap; justify-content: center; row-gap: 6px; }
+.topbar { width: max-content; max-width: 98vw; flex-wrap: wrap; justify-content: center; row-gap: 6px; }
 @media (max-width: 1100px) {
   .side, .right { width: 215px; }
   .minimap, #p-analytics, .tutorial { display: none; }
@@ -143,4 +143,9 @@ canvas#game.planting { cursor: crosshair; }
 }
 @media (max-height: 640px) {
   #p-garden, #p-analytics { display: none; }
+}
+
+/* On shorter windows the tutorial card shares the left column, so trim the trends to make room. */
+@media (max-height: 780px) {
+  .spark:nth-child(n + 3) { display: none; }
 }

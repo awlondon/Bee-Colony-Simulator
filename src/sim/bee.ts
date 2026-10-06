@@ -262,7 +262,7 @@ function replaceKeepingRole(b: Bee, w: WorldState): void {
   b.energy = 1;
   copy(b.pos, w.colony.entrancePos);
   b.vel.x = b.vel.y = b.vel.z = 0;
-  setState(b, 'nurse'); // re-evaluated by age, so guards return to guarding within seconds
+  assignRole(b); // a replacement guard takes up the post at once
 }
 
 function parkInHive(b: Bee, w: WorldState, dt: number): void {

@@ -18,8 +18,9 @@ const EVENT_KINDS = [
   'firstForage', 'danceStarted', 'dancePerformedByPlayer', 'nectarDeposited', 'honeyRipened', 'seasonChanged',
   'rainStarted', 'waspSpawned', 'waspRepelled', 'waspBreach', 'pesticideDrift', 'coldSnap', 'starvationWarning',
   'queenDied', 'colonyCollapse', 'unlock', 'possess', 'release', 'actionApplied', 'hiveFull',
+  'smokerLit', 'beekeeperStung', 'beekeeperRetreated', 'hiveTended',
 ];
-const ACTIONS = ['inspect', 'addSuper', 'feedSyrup', 'treatMites', 'plantPatch', 'removeThreat', 'harvestHoney', 'closeEntrance', 'openEntrance'];
+const ACTIONS = ['inspect', 'addSuper', 'feedSyrup', 'treatMites', 'plantPatch', 'removeThreat', 'harvestHoney', 'closeEntrance', 'openEntrance', 'setCaretakerPolicy'];
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
 
 function validTrigger(t: string): boolean {

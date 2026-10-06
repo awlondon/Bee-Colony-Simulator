@@ -152,7 +152,7 @@ export class BeeRenderer {
     }
     this.bodies.setMatrixAt(i, this.tmpM);
     if (b.possessed) this.tmpM.compose(this.p, this.q, this.s);
-    const flapping = b.state !== 'guard' || speed > 0.2;
+    const flapping = speed > 0.25 || b.state === 'collecting' || b.state === 'waggleDance' || b.state === 'followDance' || b.state === 'fightWasp';
     const flap = flapping ? Math.sin(time * 70 + b.id * 1.3) * 0.75 : 0.2;
     for (const side of [1, -1] as const) {
       this.we.set(0, 0, side * (0.15 + flap), 'XYZ');

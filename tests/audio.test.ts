@@ -57,6 +57,13 @@ describe('audioParams', () => {
     expect(audioParams(w.state, 'human', undefined, 5).buzzGain).toBe(0);
   });
 
+  it('a swarm of angry guards makes the colony louder', () => {
+    const w = world();
+    const calm = audioParams(w.state, 'human', undefined, 5).buzzGain;
+    w.state.beekeeper.attackers = 12;
+    expect(audioParams(w.state, 'human', undefined, 5).buzzGain).toBeGreaterThan(calm * 1.4);
+  });
+
   it('wind and rain follow the weather', () => {
     const w = world();
     const dry = audioParams(w.state, 'human', undefined, 5);

@@ -12,6 +12,7 @@ export type Selection =
   | { kind: 'patch'; id: number }
   | { kind: 'bee'; id: number }
   | { kind: 'threat'; id: number }
+  | { kind: 'keeper' }
   | null;
 
 interface Orbit {
@@ -170,6 +171,21 @@ export class HumanController implements Controller {
       if (d < best) {
         best = d;
         sel = { kind: 'threat', id: t.id };
+      }
+    }
+    // The beekeeper: bees crowding round them must not make them unclickable.
+    const kp = s.beekeeper.pos;
+    const kd = raySphere(origin, direction, c.set(kp.x, kp.y + 1.0, kp.z), 1.2 + 0.015 * origin.distanceTo(c));
+    if (kd < Infinity) {
+      const beeNearKeeper =
+        sel?.kind === 'bee' &&
+        (() => {
+          const bee = s.bees.find((b) => b.id === (sel as { id: number }).id);
+          return !!bee && Math.hypot(bee.pos.x - kp.x, bee.pos.z - kp.z) < 2.6;
+        })();
+      if (kd < best || beeNearKeeper) {
+        best = kd;
+        sel = { kind: 'keeper' };
       }
     }
     const hp = s.colony.hivePos;
